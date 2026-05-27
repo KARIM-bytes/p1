@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS matters (
 
 -- ── 3. USERS ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
-  id          TEXT PRIMARY KEY,      -- e.g. 'user_priya'
+  id          UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   name        TEXT NOT NULL,
   email       TEXT UNIQUE NOT NULL,
   role        TEXT NOT NULL,         -- 'partner' | 'associate' | 'paralegal'
@@ -87,16 +87,18 @@ ALTER TABLE ai_sessions       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE blocked_access_log ENABLE ROW LEVEL SECURITY;
 
 -- ── matters: users see ONLY matters they have permission for ─
+DROP POLICY IF EXISTS "Users see own matters" ON matters;
 CREATE POLICY "Users see own matters" ON matters
   FOR SELECT USING (
     id IN (
       SELECT matter_id
       FROM matter_permissions
-      WHERE user_id = auth.uid()   -- auth.uid() is replaced by demo context
+      WHERE user_id = auth.uid()
     )
   );
 
 -- ── ai_sessions: scoped to user's permitted matters ──────────
+DROP POLICY IF EXISTS "Users see own sessions" ON ai_sessions;
 CREATE POLICY "Users see own sessions" ON ai_sessions
   FOR SELECT USING (
     matter_id IN (
@@ -107,6 +109,7 @@ CREATE POLICY "Users see own sessions" ON ai_sessions
   );
 
 -- ── ai_sessions: users can INSERT sessions for permitted matters
+DROP POLICY IF EXISTS "Users insert own sessions" ON ai_sessions;
 CREATE POLICY "Users insert own sessions" ON ai_sessions
   FOR INSERT WITH CHECK (
     matter_id IN (
@@ -117,6 +120,7 @@ CREATE POLICY "Users insert own sessions" ON ai_sessions
   );
 
 -- ── ai_sessions: partners can UPDATE (review) any session ────
+DROP POLICY IF EXISTS "Partners can review sessions" ON ai_sessions;
 CREATE POLICY "Partners can review sessions" ON ai_sessions
   FOR UPDATE USING (
     EXISTS (
@@ -126,10 +130,12 @@ CREATE POLICY "Partners can review sessions" ON ai_sessions
   );
 
 -- ── blocked_access_log: anyone authenticated can INSERT ──────
+DROP POLICY IF EXISTS "All can log blocked access" ON blocked_access_log;
 CREATE POLICY "All can log blocked access" ON blocked_access_log
   FOR INSERT WITH CHECK (true);
 
 -- ── blocked_access_log: only partners can SELECT ─────────────
+DROP POLICY IF EXISTS "Partners can read blocked log" ON blocked_access_log;
 CREATE POLICY "Partners can read blocked log" ON blocked_access_log
   FOR SELECT USING (
     EXISTS (

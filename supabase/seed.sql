@@ -2,6 +2,17 @@
 -- BRAHMO Compliance Engine — Seed Data
 -- Run this AFTER schema.sql
 -- ============================================================
+-- ⚠️  BEFORE RUNNING: Replace the UUIDs below with the real UUIDs
+--     from Supabase Authentication → Users panel.
+--
+--     SHARMA_UUID  ← auth UUID for sharma@firm.com
+--     PRIYA_UUID   ← auth UUID for priya@firm.com
+--     RAHUL_UUID   ← auth UUID for rahul@firm.com
+--     SONIA_UUID   ← auth UUID for sonia@firm.com
+--
+-- Example (replace with your real values):
+--   SHARMA_UUID = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+-- ============================================================
 
 -- ── CLIENTS ──────────────────────────────────────────────────
 INSERT INTO clients (id, name) VALUES
@@ -14,14 +25,6 @@ INSERT INTO matters (id, client_id, matter_name, practice_area, court, status) V
   ('matter_1', 'client_a', 'Rajesh Kumar — Anticipatory Bail', 'criminal',  'Delhi High Court',  'active'),
   ('matter_2', 'client_a', 'Rajesh Kumar — Property Dispute',  'property',  'Civil Court Delhi', 'active'),
   ('matter_3', 'client_b', 'TechCorp — NDA Review',            'corporate', 'N/A',               'active')
-ON CONFLICT (id) DO NOTHING;
-
--- ── USERS ────────────────────────────────────────────────────
-INSERT INTO users (id, name, email, role, sra_number) VALUES
-  ('user_partner', 'Advocate Sharma', 'sharma@firm.com', 'partner',   'SRA-001'),
-  ('user_priya',   'Priya Mehta',     'priya@firm.com',  'associate', 'SRA-002'),
-  ('user_rahul',   'Rahul Singh',     'rahul@firm.com',  'associate', 'SRA-003'),
-  ('user_sonia',   'Sonia Das',       'sonia@firm.com',  'paralegal',  NULL)
 ON CONFLICT (id) DO NOTHING;
 
 -- ── MATTER PERMISSIONS ───────────────────────────────────────

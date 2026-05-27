@@ -43,20 +43,25 @@ export default function Home() {
     const sessData = await sessRes.json()
     setSessions(sessData.sessions || [])
 
-    // 3. Fetch matters via API (scoped to user's permissions)
-    const mattersRes = await fetch(`/api/matters?userId=${userId}`)
-    const mattersData = await mattersRes.json()
-    setMatters(mattersData.matters || [])
+    // 3. Fetch matters via supabase client (RLS auto-filters by auth.uid())
+    const { data: mattersData } = await supabase.from('matters').select('*')
+    setMatters(mattersData || [])
 
     // 4. Fetch stats
     const statsRes = await fetch(`/api/stats?userId=${userId}`)
     const statsData = await statsRes.json()
     setStats(statsData.stats || null)
 
-    // 5. Fetch blocked events (all roles — blocked log shows data for all)
-    const blockedRes = await fetch('/api/blocked-log')
-    const blockedData = await blockedRes.json()
-    setBlockedEvents(blockedData.events || [])
+    // 5. Fetch blocked events — only if partner (RLS enforces this at DB level too)
+    if (profile.role === 'partner') {
+      const { data: blocked } = await supabase
+        .from('blocked_access_log')
+        .select('*')
+        .order('timestamp', { ascending: false })
+      setBlockedEvents(blocked || [])
+    } else {
+      setBlockedEvents([])
+    }
 
     setLoading(false)
   }
