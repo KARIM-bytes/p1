@@ -1,65 +1,229 @@
-import Image from "next/image";
+'use client'
+
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import type { User, AiSession, BlockedAccessEvent, DashboardStats, ReviewDecision } from '@/lib/types'
+import UserSwitcher, { DEMO_USERS } from '@/components/UserSwitcher'
+import SessionList from '@/components/SessionList'
+import BlockedAccessLog from '@/components/BlockedAccessLog'
+import ReviewPanel from '@/components/ReviewPanel'
+import ExportButton from '@/components/ExportButton'
+import StatsCards from '@/components/StatsCards'
+import MatterList from '@/components/MatterList'
 
 export default function Home() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [sessions, setSessions] = useState<AiSession[]>([])
+  const [blockedEvents, setBlockedEvents] = useState<BlockedAccessEvent[]>([])
+  const [matters, setMatters] = useState<any[]>([])
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [activeTab, setActiveTab] = useState<'sessions' | 'blocked' | 'review' | 'export'>('sessions')
+  const [loading, setLoading] = useState(true)
+
+  async function fetchUserData(userId: string, userProfile: User) {
+    try {
+      // 1. Fetch sessions
+      const sessRes = await fetch(`/api/sessions?userId=${userId}`)
+      const sessData = await sessRes.json()
+      setSessions(sessData.sessions || [])
+
+      // 2. Fetch matters
+      const mattersRes = await fetch(`/api/matters?userId=${userId}`)
+      const mattersData = await mattersRes.json()
+      setMatters(mattersData.matters || [])
+
+      // 3. Fetch stats
+      const statsRes = await fetch(`/api/stats?userId=${userId}`)
+      const statsData = await statsRes.json()
+      setStats(statsData.stats || null)
+
+      // 4. Fetch blocked events
+      const blockedRes = await fetch('/api/blocked-log')
+      const blockedData = await blockedRes.json()
+      setBlockedEvents(blockedData.events || [])
+    } catch (err) {
+      console.error('Error fetching user data:', err)
+    }
+  }
+
+  async function handleUserSwitch(userId: string) {
+    setLoading(true)
+    const { data: profile } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (profile) {
+      const userProfile = profile as User
+      setCurrentUser(userProfile)
+      await fetchUserData(userId, userProfile)
+    } else {
+      setCurrentUser(null)
+    }
+    setLoading(false)
+  }
+
+  async function handleStartSession(matterId: string) {
+    if (!currentUser) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          matterId,
+          queryType: 'draft',
+        }),
+      })
+      if (res.ok) {
+        await fetchUserData(currentUser.id, currentUser)
+      }
+    } catch (err) {
+      console.error('Error starting session:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleReviewSubmit(sessionId: string, decision: ReviewDecision, notes: string) {
+    if (!currentUser) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          reviewerId: currentUser.id,
+          decision,
+          notes,
+        }),
+      })
+      if (res.ok) {
+        await fetchUserData(currentUser.id, currentUser)
+      }
+    } catch (err) {
+      console.error('Error submitting review:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    handleUserSwitch('user_partner')
+  }, [])
+
+  const roleBadgeClass: Record<string, string> = {
+    partner:   'bg-purple-600',
+    associate: 'bg-blue-600',
+    paralegal: 'bg-green-600',
+  }
+
+  const tabs: { key: typeof activeTab; label: string }[] = [
+    { key: 'sessions', label: 'Sessions' },
+    { key: 'blocked',  label: 'Blocked Access' },
+    { key: 'review',   label: 'Review Queue' },
+    { key: 'export',   label: 'Export' },
+  ]
+
+  if (loading && !currentUser) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500 text-sm animate-pulse">Loading compliance engine...</p>
+      </div>
+    )
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white shadow rounded-lg p-8 max-w-md w-full text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">BRAHMO Compliance Engine</h1>
+          <p className="text-gray-500 text-sm mb-6">Select a user to begin the demo</p>
+          <UserSwitcher currentUserId="" onSwitch={handleUserSwitch} />
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="bg-gray-50 min-h-screen">
+      {/* TOP BAR */}
+      <div className="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-lg">BRAHMO</span>
+          <span className="text-gray-400 text-sm">Compliance Engine</span>
+        </div>
+        {currentUser && (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-300">{currentUser.name}</span>
+            <span className={`text-xs text-white px-2 py-1 rounded-full ${roleBadgeClass[currentUser.role] ?? 'bg-gray-600'}`}>
+              {currentUser.role.toUpperCase()}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* USER SWITCHER BAR */}
+      <div className="bg-gray-100 px-6 py-3 border-b border-gray-200">
+        <UserSwitcher currentUserId={currentUser.id} onSwitch={handleUserSwitch} />
+      </div>
+
+      {/* CONTENT */}
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* STATS CARDS */}
+        <StatsCards
+          stats={stats}
+          loading={loading}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+
+        {/* TAB BAR */}
+        <div className="border-b border-gray-200 mt-6 mb-4 flex">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 text-sm font-medium focus:outline-none ${
+                activeTab === tab.key
+                  ? 'border-b-2 border-gray-900 font-semibold text-gray-900'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              {tab.label}
+            </button>
+          ))}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+
+        {/* TAB CONTENT */}
+        {activeTab === 'sessions' && (
+          <div className="space-y-6">
+            <MatterList matters={matters} loading={loading} userId={currentUser.id} onStartSession={handleStartSession} />
+            <SessionList sessions={sessions} loading={loading} showReviewDetails={currentUser.role === 'partner'} />
+          </div>
+        )}
+
+        {activeTab === 'blocked' && (
+          <BlockedAccessLog
+            events={blockedEvents}
+            loading={loading}
+          />
+        )}
+
+        {activeTab === 'review' && (
+          <ReviewPanel
+            pendingSessions={sessions.filter((s) => s.review_status === 'pending')}
+            reviewerId={currentUser.id}
+            onReviewSubmit={handleReviewSubmit}
+            loading={loading}
+          />
+        )}
+
+        {activeTab === 'export' && (
+          <ExportButton />
+        )}
+      </div>
     </div>
-  );
+  )
 }
