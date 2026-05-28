@@ -1,13 +1,8 @@
-// ============================================================
-// lib/types.ts — Shared TypeScript types
-// ============================================================
-
 export type UserRole = 'partner' | 'associate' | 'paralegal';
 export type PermissionLevel = 'full' | 'read_only';
 export type QueryType = 'draft' | 'research' | 'review';
 export type ReviewStatus = 'pending' | 'reviewed' | 'rejected';
 export type ReviewDecision = 'approved' | 'approved_with_edits' | 'rejected';
-export type PrivilegeClass = 'attorney_client' | 'litigation' | 'work_product' | 'none';
 
 export interface Client {
   id: string;
@@ -58,7 +53,18 @@ export interface AiSession {
   review_decision: ReviewDecision | null;
   review_notes: string | null;
   created_at: string;
-  // optional: privilege_class?: PrivilegeClass;
+}
+
+export interface SessionWithJoins extends AiSession {
+  users?: Pick<User, 'name' | 'role'> | null;
+  matters?: Pick<Matter, 'matter_name' | 'client_id' | 'practice_area'> | null;
+}
+
+export interface ExportSessionRow extends AiSession {
+  users?: Pick<User, 'role'> | null;
+  matters?: (Pick<Matter, 'client_id' | 'practice_area'> & {
+    clients?: Pick<Client, 'name'> | null;
+  }) | null;
 }
 
 export interface BlockedAccessEvent {
@@ -70,12 +76,10 @@ export interface BlockedAccessEvent {
   timestamp: string;
 }
 
-// ── Ethical Wall result ──────────────────────────────────────
 export type AccessResult =
   | { status: 'CLEAR'; matterId: string }
   | { status: 'BLOCKED'; reason: string };
 
-// ── Dashboard summary stats ──────────────────────────────────
 export interface DashboardStats {
   totalSessions: number;
   reviewedSessions: number;
@@ -84,12 +88,12 @@ export interface DashboardStats {
   reviewedPercent: number;
 }
 
-// ── Compliance export row ─────────────────────────────────────
 export interface ComplianceExportRow {
   date: string;
-  user: string;        // anonymized or role
+  actor: string;
   role: string;
-  matterType: string;  // anonymized: 'Client A', 'Client B'
+  matter: string;
+  client: string;
   practiceArea: string;
   queryType: string;
   outputHash: string;

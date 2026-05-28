@@ -1,77 +1,52 @@
 'use client';
 
-// ============================================================
-// components/MatterList.tsx
-//
-// Shows accessible matters for the current user.
-// RLS guarantees only permitted matters are returned from DB.
-// Matter 3 (TechCorp NDA) is INVISIBLE to Priya — not listed,
-// not errored — it simply doesn't exist from her perspective.
-// ============================================================
-
 import { Matter } from '@/lib/types';
 
 interface MatterListProps {
   matters: Matter[];
   loading: boolean;
-  userId: string;
-  /** Called when user wants to start a session on a matter */
   onStartSession?: (matterId: string) => void;
 }
 
-const PRACTICE_AREA_ICONS: Record<string, string> = {
-  criminal:  '⚖️',
-  property:  '🏠',
-  corporate: '🏢',
-  default:   '📁',
-};
-
-export default function MatterList({
-  matters,
-  loading,
-  userId,
-  onStartSession,
-}: MatterListProps) {
+export default function MatterList({ matters, loading, onStartSession }: MatterListProps) {
   if (loading) {
-    return <div className="matter-list matter-list--loading">Loading matters…</div>;
+    return <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading matters...</div>;
   }
 
   if (matters.length === 0) {
     return (
-      <div className="matter-list matter-list--empty">
-        No matters accessible. (RLS returned zero rows.)
+      <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500">
+        No matters are visible for this user. RLS returned zero rows.
       </div>
     );
   }
 
   return (
-    <div className="matter-list">
-      <h3 className="matter-list__title">✅ Accessible Matters</h3>
-      <ul className="matter-list__items">
-        {matters.map((m) => {
-          const icon = PRACTICE_AREA_ICONS[m.practice_area ?? ''] ?? PRACTICE_AREA_ICONS.default;
-          return (
-            <li key={m.id} className="matter-item">
-              <div className="matter-item__icon">{icon}</div>
-              <div className="matter-item__info">
-                <span className="matter-item__name">{m.matter_name}</span>
-                <span className="matter-item__meta">
-                  {m.practice_area} · {m.court} · {m.status}
-                </span>
+    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-5 py-4">
+        <h2 className="text-base font-semibold text-slate-950">Accessible Matters</h2>
+      </div>
+      <ul className="divide-y divide-slate-100">
+        {matters.map((matter) => (
+          <li key={matter.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="font-medium text-slate-950">{matter.matter_name}</div>
+              <div className="mt-1 text-sm text-slate-500">
+                {matter.practice_area ?? 'general'} / {matter.court ?? 'No court'} / {matter.status}
               </div>
-              {onStartSession && (
-                <button
-                  id={`start-session-${m.id}`}
-                  className="btn btn--sm btn--primary"
-                  onClick={() => onStartSession(m.id)}
-                >
-                  + Start Session
-                </button>
-              )}
-            </li>
-          );
-        })}
+            </div>
+            {onStartSession && (
+              <button
+                type="button"
+                onClick={() => onStartSession(matter.id)}
+                className="h-9 rounded-md bg-slate-900 px-3 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700"
+              >
+                Start Session
+              </button>
+            )}
+          </li>
+        ))}
       </ul>
-    </div>
+    </section>
   );
 }

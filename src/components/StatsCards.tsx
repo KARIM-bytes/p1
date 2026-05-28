@@ -1,12 +1,5 @@
 'use client';
 
-// ============================================================
-// components/StatsCards.tsx
-//
-// Four metric cards shown at the top of the dashboard:
-//   Sessions | Reviewed (%) | Pending | Blocked
-// ============================================================
-
 import { DashboardStats } from '@/lib/types';
 
 interface StatsCardsProps {
@@ -14,35 +7,30 @@ interface StatsCardsProps {
   loading: boolean;
 }
 
+const cards = [
+  { key: 'totalSessions', label: 'Total Sessions', tone: 'border-slate-200 bg-white text-slate-900' },
+  { key: 'reviewedSessions', label: 'Reviewed', tone: 'border-emerald-200 bg-emerald-50 text-emerald-900' },
+  { key: 'pendingSessions', label: 'Pending Review', tone: 'border-amber-200 bg-amber-50 text-amber-900' },
+  { key: 'blockedEvents', label: 'Blocked Events', tone: 'border-rose-200 bg-rose-50 text-rose-900' },
+] as const;
+
 export default function StatsCards({ stats, loading }: StatsCardsProps) {
-  if (loading) {
-    return (
-      <div className="stats-grid">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="stat-card stat-card--loading" />
-        ))}
-      </div>
-    );
-  }
-
-  if (!stats) return null;
-
-  const cards = [
-    { label: 'Total Sessions',   value: stats.totalSessions,   icon: '🗂️', variant: 'default' },
-    { label: 'Reviewed',         value: `${stats.reviewedSessions} (${stats.reviewedPercent}%)`, icon: '✅', variant: 'success'  },
-    { label: 'Pending Review',   value: stats.pendingSessions,  icon: '⏳', variant: 'warning' },
-    { label: 'Blocked Events',   value: stats.blockedEvents,    icon: '🚫', variant: 'danger'  },
-  ];
-
   return (
-    <div className="stats-grid">
-      {cards.map((card) => (
-        <div key={card.label} className={`stat-card stat-card--${card.variant}`}>
-          <div className="stat-card__icon">{card.icon}</div>
-          <div className="stat-card__value">{card.value}</div>
-          <div className="stat-card__label">{card.label}</div>
-        </div>
-      ))}
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {cards.map((card) => {
+        const value = card.key === 'reviewedSessions'
+          ? `${stats?.reviewedSessions ?? 0} (${stats?.reviewedPercent ?? 0}%)`
+          : stats?.[card.key] ?? 0;
+
+        return (
+          <div key={card.key} className={`min-h-28 rounded-lg border p-4 shadow-sm ${card.tone}`}>
+            <div className="text-sm font-medium text-slate-500">{card.label}</div>
+            <div className="mt-3 text-3xl font-semibold tracking-normal">
+              {loading ? '...' : value}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

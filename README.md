@@ -1,109 +1,113 @@
 # BRAHMO Compliance Engine
 
+Ethical walls, audit trail, partner review, and anonymized compliance export for legal AI usage.
+
 ## Setup
 
-### 1. Install dependencies
+1. Install dependencies:
+
 ```bash
 npm install
 ```
 
-### 2. Configure environment
+2. Configure environment:
+
 ```bash
 cp .env.local.example .env.local
 ```
+
 Fill in:
-```
+
+```text
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-### 3. Run schema in Supabase SQL Editor
-Open `supabase/schema.sql` → paste into Supabase SQL Editor → Run
+3. Create four Supabase Auth users:
 
-### 4. Create 4 Auth Users in Supabase Dashboard
-Go to **Authentication → Users → Add User** for each:
-```
-sharma@firm.com  / Test1234!
-priya@firm.com   / Test1234!
-rahul@firm.com   / Test1234!
-sonia@firm.com   / Test1234!
+```text
+sharma@firm.com / Test1234!
+priya@firm.com  / Test1234!
+rahul@firm.com  / Test1234!
+sonia@firm.com  / Test1234!
 ```
 
-### 5. Sync UUIDs in seed.sql
-After creating auth users, copy their UUIDs from the Auth panel.
-Open `supabase/seed.sql` and replace:
-```
-SHARMA_UUID, PRIYA_UUID, RAHUL_UUID, SONIA_UUID
-```
-with the real UUIDs.
+4. Run `supabase/schema.sql` in the Supabase SQL Editor.
 
-### 6. Run seed data
-Open `supabase/seed.sql` → paste into SQL Editor → Run
+5. Confirm the UUIDs in `supabase/seed.sql` match the four Auth users, then run `supabase/seed.sql`.
 
-### 7. Start the app
+6. Start the app:
+
 ```bash
 npm run dev
 ```
-Open http://localhost:3000
 
----
+Open [http://localhost:3000](http://localhost:3000).
 
-## Demo Script (5 Steps)
+## Demo Script
 
-**Step 1 — Normal Access**
-Switch to Priya → Sessions tab
-Expected: sees sessions for Matter 1 and Matter 2 only
+1. Sign in as Priya and view Sessions.
+   Expected: Priya sees Matter 1 and Matter 2 only.
 
-**Step 2 — Ethical Wall Blocking**
-As Priya → open browser console or Blocked Access tab (switch to Partner first)
-POST `/api/access-check` with `{ matterId: 'matter_3' }`
-Expected: `{ status: 'BLOCKED' }` + new row in `blocked_access_log`
+2. As Priya, run the Live Access Check against Matter 3.
+   Expected: response is blocked, no matter details are returned, and a row is appended to `blocked_access_log`.
 
-**Step 3 — Isolation Proof (Sonia Test)**
-Switch to Sonia → Sessions tab and Matters list
-Expected: sees Matter 1 only — NOT Matter 2 (same client, different permission)
+3. Sign in as Sonia.
+   Expected: Sonia sees Matter 1 only, not Matter 2, even though both are Client A matters.
 
-**Step 4 — Review Chain**
-Switch to Partner → Review Queue tab
-Find a pending session → add notes → click Approve
-Expected: session `review_status` updates to `'reviewed'` in database
+4. Sign in as Advocate Sharma.
+   Expected: blocked log, review queue, and export tabs are available. Approving a pending session writes reviewer, timestamp, decision, and notes.
 
-**Step 5 — Compliance Export**
-As Partner → Export tab
-Set date range → click Export Compliance CSV
-Open downloaded file
-Expected: client names show as `'Client A'`, `'Client B'` — no real names
+5. Export the compliance CSV as Advocate Sharma.
+   Expected: clients, matters, users, reviewers, and notes are masked; hashes and audit timestamps remain.
 
----
+## Evaluator SQL Proofs
 
-## SQL Proofs for Evaluators
-
-Run these in Supabase SQL Editor during the demo:
+Confirm RLS and force RLS:
 
 ```sql
--- 1. Confirm RLS is enabled
-SELECT tablename, rowsecurity
-FROM pg_tables WHERE schemaname = 'public';
-
--- 2. Show active policies
-SELECT policyname, tablename, cmd, qual
-FROM pg_policies WHERE schemaname = 'public';
-
--- 3. Prove blocked_access_log is immutable (this must fail)
-DELETE FROM blocked_access_log LIMIT 1;
--- Expected: ERROR: permission denied for table blocked_access_log
-
--- 4. Prove matter-level isolation
--- Log in as sonia@firm.com, then in SQL Editor with her session:
-SELECT * FROM matters;
--- Returns: matter_1 only
+SELECT tablename, rowsecurity, forcerowsecurity
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY tablename;
 ```
 
----
+Show active policies:
 
-## Innovation: Review SLA Tracker
+```sql
+SELECT tablename, policyname, cmd, qual, with_check
+FROM pg_policies
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;
+```
 
-Sessions pending review for more than 48 hours are flagged in red
-on the Sessions dashboard. This reflects real compliance requirements
-where AI output must be reviewed within a defined window.
+Prove append-only blocked log:
+
+```sql
+DELETE FROM blocked_access_log WHERE event_id = 'block_001';
+-- Expected: ERROR: blocked_access_log is append-only
+```
+
+Prove Sonia matter-level isolation:
+
+```sql
+-- Run as Sonia's authenticated session.
+SELECT id, client_id, matter_name FROM matters ORDER BY id;
+-- Expected: matter_1 only.
+```
+
+Prove permission removal affects historical sessions:
+
+```sql
+DELETE FROM matter_permissions
+WHERE user_id = '<PRIYA_UUID>' AND matter_id = 'matter_2';
+
+-- Sign in as Priya and query sessions.
+SELECT id, matter_id FROM ai_sessions ORDER BY session_start DESC;
+-- Expected: no matter_2 sessions.
+```
+
+## Notes
+
+This workspace uses the installed Next.js 16 runtime. The project follows the local `node_modules/next/dist/docs` guidance for current route handlers and authentication checks. The assessment brief mentioned Next.js 14, but downgrading without the matching lockfile/runtime would be less reliable than using the installed framework version consistently.

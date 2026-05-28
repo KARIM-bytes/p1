@@ -1,78 +1,156 @@
-# BRAHMO Compliance Engine — Architecture
+# BRAHMO Compliance Engine - Secure Architecture
 
-## 1. Why Row Level Security Over Application Checks
+## 1. Security Boundary
 
-Application-level checks (e.g., `if (user.role === 'partner') return data`) can be bypassed by bugs in route handlers, missing middleware, or direct database access granted to a compromised service account. PostgreSQL RLS enforces access at the data layer — the policy runs inside the database engine on every query, regardless of how the query arrives. Even if all API code is deleted or bypassed, the database still returns zero rows for unauthorized queries. This means the security guarantee is not dependent on any application code being correct.
+The security boundary is PostgreSQL Row Level Security, not React state and not route parameters.
+
+Every user-facing API route requires a Supabase Auth access token in the `Authorization: Bearer <token>` header. The server creates a Supabase client with the anon key plus that JWT. This means reads and writes execute as the signed-in user, so `auth.uid()` is available inside RLS policies.
+
+The app no longer accepts `userId` from the browser. A user cannot impersonate Priya, Rahul, Sonia, or the partner by changing a query string or request body.
+
+`service_role` is reserved for one privileged path: compliance export after the caller has been authenticated and verified as a partner. Normal flows use the authenticated client and RLS.
+
+## 2. Matter-Level Ethical Walls
+
+Access is controlled by `matter_permissions`, one row per `(user_id, matter_id)` grant.
+
+The key policies are:
 
 ```sql
-CREATE POLICY "matters_select" ON matters
+CREATE POLICY "Users see permitted matters" ON matters
   FOR SELECT USING (
-    id IN (SELECT matter_id FROM matter_permissions WHERE user_id = auth.uid())
+    EXISTS (
+      SELECT 1
+      FROM matter_permissions mp
+      WHERE mp.user_id = auth.uid()
+        AND mp.matter_id = matters.id
+    )
   );
 ```
 
----
+The policy checks exact `matter_id`. It does not grant access by `client_id`. This is why Sonia can see `matter_1` but not `matter_2`, even though both are Client A matters.
 
-## 2. Ethical Wall: How BLOCKED Access Works
+Removing a row from `matter_permissions` immediately removes visibility to the matter and its historical AI sessions.
 
-When a user attempts to access a matter, `checkAccess()` in `src/lib/ethical-wall.ts` queries `matter_permissions` for the exact `(userId, matterId)` pair.
+## 3. Blocked Access
 
-- If no matching row exists: access status is `BLOCKED`
-- The blocked attempt is immediately logged to `blocked_access_log` with reason, user ID, and attempted matter ID
-- The API route (`/api/access-check`) always returns HTTP **200** with `{ status: 'BLOCKED' }`
-- It never returns **403** or **404**
+`checkAccess()` queries the authenticated user's visible permission rows. If no row exists, it inserts a denied event into `blocked_access_log` and returns only:
 
-Returning 403 or 404 would confirm to the requester that a matter exists (or does not) — leaking information across the ethical wall. By returning 200 with a generic `BLOCKED` status, the API gives no signal about whether the matter ID is valid, what client it belongs to, or why access was denied. This is called **security through obscurity at the API boundary**: the boundary itself reveals nothing.
-
----
-
-## 3. Immutable Audit Log
-
-The `blocked_access_log` table is made append-only at the PostgreSQL level by revoking modification privileges:
-
-```sql
-REVOKE UPDATE, DELETE ON blocked_access_log FROM authenticated;
-REVOKE UPDATE, DELETE ON blocked_access_log FROM anon;
+```json
+{ "status": "BLOCKED" }
 ```
 
-If anyone — including a database administrator using the anon or authenticated role — attempts to remove a record:
+The response does not include matter name, client name, reason details, or whether the requested matter exists. This avoids leaking information across the ethical wall.
+
+## 4. Append-Only Audit Log
+
+`blocked_access_log` is protected three ways:
+
+1. RLS allows inserts only when `user_id = auth.uid()`.
+2. `UPDATE` and `DELETE` are revoked from `authenticated` and `anon`.
+3. A trigger raises an exception before any update or delete.
+
+Expected proof:
 
 ```sql
-DELETE FROM blocked_access_log WHERE event_id = 'x';
--- ERROR: permission denied for table blocked_access_log
+DELETE FROM blocked_access_log WHERE event_id = 'block_001';
+-- ERROR: blocked_access_log is append-only
 ```
 
-`INSERT` still works, so the logging mechanism continues to function. The result is a tamper-proof record: once an unauthorized access attempt is logged, it cannot be deleted or modified to cover tracks. Even a user who later gains elevated privileges cannot retroactively erase their blocked access history.
+## 5. AI Session Audit Trail
 
----
+Every session, including partner sessions, is written to `ai_sessions`.
 
-## 4. Audit Trail: Output Hash Not Full Text
+The system stores:
 
-`ai_sessions` stores `output_hash` (a SHA-256 digest of the AI output) rather than the full text of the AI response.
+- user ID
+- matter ID
+- timestamps
+- query type
+- output token count
+- SHA-256 output hash
+- review status and decision
 
-- **Why not store full output:** AI-generated legal drafts, research memos, and review notes may contain attorney-client privileged content. Storing them in a compliance log creates a secondary exposure risk.
-- **What the hash provides:** A reviewer can take the AI output from the user's local environment, hash it, and compare it to `output_hash` in the database. If they match, the output was not tampered with after the session ended.
-- **Regulatory use case:** If a regulator asks "was this AI output altered before submission?", the hash comparison answers the question definitively — without requiring access to the underlying privileged text.
+The system does not store raw AI output. `/api/sessions PATCH` accepts `rawOutput`, hashes it server-side with SHA-256, and stores only `output_hash`.
 
----
+## 6. Review Chain
 
-## 5. Matter-Level Isolation (Sonia Test)
+Only partners can call `/api/review`.
 
-Client A has two active matters:
+The route verifies the signed-in user's profile role before attempting the update. The database also requires the partner to have permission to the matter being reviewed.
 
-| Matter ID  | Matter Name                        |
-|------------|------------------------------------|
-| `matter_1` | Rajesh Kumar — Anticipatory Bail   |
-| `matter_2` | Rajesh Kumar — Property Dispute    |
+Review records include:
 
-Sonia (paralegal) has a `matter_permissions` entry for `matter_1` only. She has no entry for `matter_2`, even though both matters belong to the same client.
+- reviewer ID
+- review timestamp
+- decision
+- notes
 
-When Sonia queries the database (via the RLS-enforced anon client):
+## 7. Compliance Export
+
+Only partners can trigger `/api/export`.
+
+The export uses `service_role` only after partner verification because regulators need a complete firm-wide export. The CSV masks client names, matter names, user IDs, reviewer IDs, and review note contents. It preserves audit-relevant fields such as roles, practice area, timestamps, review status, decisions, token counts, and output hashes.
+
+## 8. Verification Queries
+
+Confirm RLS:
 
 ```sql
-SELECT * FROM matters;
--- Returns: only matter_1
--- matter_2 is invisible even though same client
+SELECT tablename, rowsecurity, forcerowsecurity
+FROM pg_tables
+WHERE schemaname = 'public'
+  AND tablename IN (
+    'clients',
+    'users',
+    'matters',
+    'matter_permissions',
+    'ai_sessions',
+    'blocked_access_log'
+  )
+ORDER BY tablename;
 ```
 
-This works because the RLS policy checks `matter_id` in `matter_permissions` — not `client_id`. There is no concept of "if you can see one matter for a client, you can see all their matters." Each matter is independently permissioned. This proves the system enforces **matter-level isolation**, not client-level isolation, which is the correct model for legal ethical walls.
+Confirm policies:
+
+```sql
+SELECT tablename, policyname, cmd, qual, with_check
+FROM pg_policies
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;
+```
+
+Sonia matter-level proof:
+
+```sql
+-- Run as Sonia's authenticated session.
+SELECT id, client_id, matter_name
+FROM matters
+ORDER BY id;
+-- Expected: matter_1 only. matter_2 must not appear.
+```
+
+Permission removal proof:
+
+```sql
+DELETE FROM matter_permissions
+WHERE user_id = '<PRIYA_UUID>' AND matter_id = 'matter_2';
+
+-- Then sign in as Priya and query:
+SELECT id, matter_id
+FROM ai_sessions
+ORDER BY session_start DESC;
+-- Expected: no matter_2 sessions.
+```
+
+New matter proof:
+
+```sql
+INSERT INTO matters (id, client_id, matter_name, practice_area, court)
+VALUES ('matter_4', 'client_a', 'Client A - New Injunction', 'civil', 'Delhi High Court');
+
+INSERT INTO matter_permissions (user_id, matter_id, permission_level, granted_by)
+VALUES ('<PRIYA_UUID>', 'matter_4', 'full', 'demo');
+
+-- Sign in as Priya. matter_4 appears without code changes.
+```

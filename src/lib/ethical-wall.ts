@@ -1,53 +1,64 @@
-import { supabaseAdmin } from './supabase';
-import type { AccessResult } from './types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AccessResult, Matter } from './types';
 
-export async function checkAccess(userId: string, matterId: string): Promise<AccessResult> {
-  const { data, error } = await supabaseAdmin
+interface PermissionRow {
+  matter_id: string;
+  permission_level: string;
+}
+
+export async function checkAccess(
+  client: SupabaseClient,
+  currentUserId: string,
+  matterId: string
+): Promise<AccessResult> {
+  const { data, error } = await client
     .from('matter_permissions')
     .select('matter_id, permission_level')
-    .eq('user_id', userId)
     .eq('matter_id', matterId)
-    .single();
+    .maybeSingle<PermissionRow>();
 
   if (error || data == null) {
     await logBlockedAccess(
-      userId,
+      client,
+      currentUserId,
       matterId,
       'no_permission',
-      `User ${userId} attempted to access matter ${matterId}. No permission found.`
+      'Authenticated user attempted to access a matter without a matching permission grant.'
     );
     return { status: 'BLOCKED', reason: 'no_permission' };
   }
 
-  return { status: 'CLEAR', matterId };
+  return { status: 'CLEAR', matterId: data.matter_id };
 }
 
 export async function logBlockedAccess(
-  userId: string,
+  client: SupabaseClient,
+  currentUserId: string,
   matterId: string,
   reason: string,
   details: string
 ): Promise<void> {
-  const eventId = `block_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  try {
-    await supabaseAdmin.from('blocked_access_log').insert({
-      event_id: eventId,
-      user_id: userId,
-      attempted_matter_id: matterId,
-      reason,
-      details,
-      timestamp: new Date().toISOString(),
-    });
-  } catch {
-    // silently ignore
+  const eventId = `block_${crypto.randomUUID()}`;
+  const { error } = await client.from('blocked_access_log').insert({
+    event_id: eventId,
+    user_id: currentUserId,
+    attempted_matter_id: matterId,
+    reason,
+    details,
+    timestamp: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error('[blocked_access_log insert]', error.message);
   }
 }
 
-export async function getAccessibleMatters(userId: string): Promise<string[]> {
-  const { data } = await supabaseAdmin
-    .from('matter_permissions')
-    .select('matter_id')
-    .eq('user_id', userId);
+export async function getAccessibleMatters(client: SupabaseClient): Promise<Matter[]> {
+  const { data, error } = await client
+    .from('matters')
+    .select('id, client_id, matter_name, practice_area, court, status, created_at')
+    .order('id', { ascending: true });
 
-  return (data || []).map((row: { matter_id: string }) => row.matter_id);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Matter[];
 }

@@ -1,79 +1,105 @@
 'use client';
 
-// ============================================================
-// components/UserSwitcher.tsx
-//
-// Demo user switcher — signs in via Supabase Auth using
-// signInWithPassword so auth.uid() is a real JWT identity.
-// Each switch: signOut current session, signIn as new user.
-// This makes RLS policies using auth.uid() work natively.
-// ============================================================
-
 import { supabase } from '@/lib/supabase';
-import type { User } from '@/lib/types';
+import type { User, UserRole } from '@/lib/types';
 
-// Demo accounts — passwords set during Supabase Auth setup (see README)
 const DEMO_PASSWORD = 'Test1234!';
 
-export const DEMO_USERS: User[] = [
-  { id: 'user_partner', name: 'Advocate Sharma (Partner)', email: 'sharma@firm.com', role: 'partner',   sra_number: 'SRA-001', created_at: '' },
-  { id: 'user_priya',   name: 'Priya Mehta (Associate)',   email: 'priya@firm.com',  role: 'associate', sra_number: 'SRA-002', created_at: '' },
-  { id: 'user_rahul',   name: 'Rahul Singh (Associate)',   email: 'rahul@firm.com',  role: 'associate', sra_number: 'SRA-003', created_at: '' },
-  { id: 'user_sonia',   name: 'Sonia Das (Paralegal)',     email: 'sonia@firm.com',  role: 'paralegal', sra_number: null,      created_at: '' },
+export const DEMO_USERS: Array<Pick<User, 'id' | 'name' | 'email' | 'role' | 'sra_number' | 'created_at'>> = [
+  {
+    id: 'a165eb17-a1ae-434c-88ae-8d970773b45f',
+    name: 'Advocate Sharma',
+    email: 'sharma@firm.com',
+    role: 'partner',
+    sra_number: 'SRA-001',
+    created_at: '',
+  },
+  {
+    id: '335f7d86-f261-4d74-9b05-b84b88057279',
+    name: 'Priya Mehta',
+    email: 'priya@firm.com',
+    role: 'associate',
+    sra_number: 'SRA-002',
+    created_at: '',
+  },
+  {
+    id: 'dcc22e7e-c94f-4ee0-84bb-ac4cac063ed5',
+    name: 'Rahul Singh',
+    email: 'rahul@firm.com',
+    role: 'associate',
+    sra_number: 'SRA-003',
+    created_at: '',
+  },
+  {
+    id: 'ff1a4163-ca37-45de-9bf4-76e0d59ee128',
+    name: 'Sonia Das',
+    email: 'sonia@firm.com',
+    role: 'paralegal',
+    sra_number: null,
+    created_at: '',
+  },
 ];
 
 interface UserSwitcherProps {
   currentUserId: string;
+  currentUserEmail?: string;
   onSwitch: (userId: string) => void;
 }
 
-export default function UserSwitcher({ currentUserId, onSwitch }: UserSwitcherProps) {
-  const currentDemo = DEMO_USERS.find((u) => u.id === currentUserId);
+const roleClass: Record<UserRole, string> = {
+  partner: 'bg-violet-100 text-violet-800 border-violet-200',
+  associate: 'bg-blue-100 text-blue-800 border-blue-200',
+  paralegal: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+};
+
+export default function UserSwitcher({ currentUserId, currentUserEmail, onSwitch }: UserSwitcherProps) {
+  const currentDemo = DEMO_USERS.find((user) =>
+    user.id === currentUserId || user.email === currentUserEmail
+  );
 
   async function handleChange(email: string) {
-    // 1. Sign out current session
     await supabase.auth.signOut();
-
-    // 2. Sign in as selected demo user — this sets auth.uid() in every RLS check
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password: DEMO_PASSWORD,
     });
 
     if (error || !data.user) {
-      console.error('[UserSwitcher] signInWithPassword failed:', error?.message);
+      console.error('[UserSwitcher] sign-in failed:', error?.message);
       return;
     }
 
-    // 3. Notify parent with the real auth UUID so fetchData uses the right identity
     onSwitch(data.user.id);
   }
 
   return (
-    <div className="user-switcher">
-      <label htmlFor="user-select" className="user-switcher__label">
-        👤 Demo User
+    <div className="flex flex-wrap items-center gap-3">
+      <label htmlFor="user-select" className="text-sm font-medium text-slate-700">
+        Demo user
       </label>
       <select
         id="user-select"
         value={currentDemo?.email ?? ''}
-        onChange={(e) => handleChange(e.target.value)}
-        className="user-switcher__select"
+        onChange={(event) => handleChange(event.target.value)}
+        className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
       >
-        {DEMO_USERS.map((u) => (
-          <option key={u.id} value={u.email}>
-            {u.name}
+        <option value="" disabled>
+          Select a user
+        </option>
+        {DEMO_USERS.map((user) => (
+          <option key={user.email} value={user.email}>
+            {user.name} ({user.role})
           </option>
         ))}
       </select>
       {currentDemo && (
-        <span className={`user-switcher__badge user-switcher__badge--${currentDemo.role}`}>
+        <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${roleClass[currentDemo.role]}`}>
           {currentDemo.role.toUpperCase()}
         </span>
       )}
-
-      {/* Indicates demo credentials are in use */}
-      <span className="user-switcher__demo-tag">⚠️ DEMO MODE</span>
+      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+        DEMO MODE
+      </span>
     </div>
   );
 }

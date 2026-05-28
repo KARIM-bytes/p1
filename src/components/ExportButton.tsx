@@ -1,19 +1,10 @@
 'use client';
 
-// ============================================================
-// components/ExportButton.tsx
-//
-// Triggers GET /api/export?from=...&to=... and initiates a
-// browser CSV download. Client name anonymization happens
-// server-side — this component just controls the date range.
-// ============================================================
-
 import { useState } from 'react';
+import { authFetch } from '@/lib/api-client';
 
 interface ExportButtonProps {
-  /** Default: 30 days ago */
   defaultFrom?: string;
-  /** Default: today */
   defaultTo?: string;
 }
 
@@ -22,17 +13,17 @@ function todayISO() {
 }
 
 function thirtyDaysAgoISO() {
-  const d = new Date();
-  d.setDate(d.getDate() - 30);
-  return d.toISOString().slice(0, 10);
+  const date = new Date();
+  date.setDate(date.getDate() - 30);
+  return date.toISOString().slice(0, 10);
 }
 
 export default function ExportButton({
   defaultFrom = thirtyDaysAgoISO(),
-  defaultTo   = todayISO(),
+  defaultTo = todayISO(),
 }: ExportButtonProps) {
   const [from, setFrom] = useState(defaultFrom);
-  const [to,   setTo]   = useState(defaultTo);
+  const [to, setTo] = useState(defaultTo);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,65 +32,62 @@ export default function ExportButton({
     setError(null);
 
     try {
-      const res = await fetch(`/api/export?from=${from}&to=${to}`);
-      if (!res.ok) {
-        const body = await res.json();
+      const response = await authFetch(`/api/export?from=${from}&to=${to}`);
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? 'Export failed');
       }
 
-      // Trigger browser download
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = `brahmo-compliance-${from}-to-${to}.csv`;
-      a.click();
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `brahmo-compliance-${from}-to-${to}.csv`;
+      link.click();
       URL.revokeObjectURL(url);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Unknown error');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Export failed');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="export-widget">
-      <div className="export-widget__controls">
-        <label htmlFor="export-from">From</label>
-        <input
-          id="export-from"
-          type="date"
-          value={from}
-          max={to}
-          onChange={(e) => setFrom(e.target.value)}
-          className="export-widget__date"
-        />
-
-        <label htmlFor="export-to">To</label>
-        <input
-          id="export-to"
-          type="date"
-          value={to}
-          min={from}
-          max={todayISO()}
-          onChange={(e) => setTo(e.target.value)}
-          className="export-widget__date"
-        />
-
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="grid gap-3 sm:grid-cols-[auto_auto_1fr] sm:items-end">
+        <label className="grid gap-1 text-sm font-medium text-slate-700">
+          From
+          <input
+            type="date"
+            value={from}
+            max={to}
+            onChange={(event) => setFrom(event.target.value)}
+            className="h-10 rounded-md border border-slate-300 px-3 text-sm text-slate-900 outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
+          />
+        </label>
+        <label className="grid gap-1 text-sm font-medium text-slate-700">
+          To
+          <input
+            type="date"
+            value={to}
+            min={from}
+            max={todayISO()}
+            onChange={(event) => setTo(event.target.value)}
+            className="h-10 rounded-md border border-slate-300 px-3 text-sm text-slate-900 outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
+          />
+        </label>
         <button
-          id="export-csv-btn"
+          type="button"
           onClick={handleExport}
           disabled={loading}
-          className="btn btn--export"
+          className="h-10 rounded-md bg-slate-900 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-60"
         >
-          {loading ? '⏳ Generating…' : '📄 Export Compliance CSV'}
+          {loading ? 'Generating...' : 'Export Compliance CSV'}
         </button>
       </div>
-
-      {error && <p className="export-widget__error">⚠️ {error}</p>}
-
-      <p className="export-widget__note">
-        Client names are anonymized (Client A, B, C). Output hashes only — no full text.
+      {error && <p className="mt-3 text-sm font-medium text-rose-700">{error}</p>}
+      <p className="mt-3 text-sm text-slate-500">
+        Export masks clients, matters, users, reviewers, and notes while retaining hashes and timestamps for audit proof.
       </p>
     </div>
   );

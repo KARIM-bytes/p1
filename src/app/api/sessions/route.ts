@@ -1,63 +1,100 @@
-// ============================================================
-// app/api/sessions/route.ts
-//
-// GET  /api/sessions?userId=<id>         → list sessions for user
-// POST /api/sessions                     → start a new session
-// PATCH /api/sessions                    → end a session (store hash)
-// ============================================================
-
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAccess } from '@/lib/ethical-wall';
-import { recordSessionStart, recordSessionEnd, getSessionsForUser } from '@/lib/audit-trail';
+import {
+  getSessionsForCurrentUser,
+  recordSessionEnd,
+  recordSessionStart,
+} from '@/lib/audit-trail';
+import { getAuthenticatedContext } from '@/lib/supabase';
+import type { QueryType } from '@/lib/types';
 
-// GET — list sessions for a user (scoped to their permitted matters)
+const QUERY_TYPES: QueryType[] = ['draft', 'research', 'review'];
+
+interface StartSessionBody {
+  matterId?: string;
+  queryType?: QueryType;
+}
+
+interface EndSessionBody {
+  sessionId?: string;
+  rawOutput?: string;
+  tokenCount?: number;
+}
+
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get('userId');
-  if (!userId) {
-    return NextResponse.json({ error: 'userId is required' }, { status: 400 });
-  }
+  const context = await getAuthenticatedContext(req);
+  if (!context) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    // TODO: call getSessionsForUser(userId)
-    const sessions = await getSessionsForUser(userId);
+    const sessions = await getSessionsForCurrentUser(context.client);
     return NextResponse.json({ sessions });
-  } catch (err) {
-    console.error('[sessions GET]', err);
+  } catch (error) {
+    console.error('[sessions GET]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// POST — start a new AI session (requires CLEAR access check)
 export async function POST(req: NextRequest) {
-  try {
-    const { userId, matterId, queryType } = await req.json();
+  const context = await getAuthenticatedContext(req);
+  if (!context) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // 1. Enforce ethical wall FIRST
-    const access = await checkAccess(userId, matterId);
-    if (access.status === 'BLOCKED') {
-      // Return empty — do NOT reveal why or that the matter exists
+  try {
+    const body = (await req.json()) as StartSessionBody;
+    if (!body.matterId || !body.queryType || !QUERY_TYPES.includes(body.queryType)) {
+      return NextResponse.json(
+        { error: 'matterId and valid queryType are required' },
+        { status: 400 }
+      );
+    }
+
+    const result = await recordSessionStart(
+      context.client,
+      context.authUser.id,
+      body.matterId,
+      body.queryType
+    );
+
+    if (result.blocked) {
       return NextResponse.json({ sessions: [] }, { status: 200 });
     }
 
-    // 2. Record session start in audit trail
-    const session = await recordSessionStart(userId, matterId, queryType);
-    return NextResponse.json({ session }, { status: 201 });
-  } catch (err) {
-    console.error('[sessions POST]', err);
+    if (!result.sessionId) {
+      return NextResponse.json({ error: result.error ?? 'Session creation failed' }, { status: 500 });
+    }
+
+    return NextResponse.json({ session: { id: result.sessionId } }, { status: 201 });
+  } catch (error) {
+    console.error('[sessions POST]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// PATCH — end a session (store output hash, NOT raw output)
 export async function PATCH(req: NextRequest) {
-  try {
-    const { sessionId, rawOutput, tokenCount } = await req.json();
+  const context = await getAuthenticatedContext(req);
+  if (!context) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // TODO: call recordSessionEnd(sessionId, rawOutput, tokenCount)
-    await recordSessionEnd(sessionId, rawOutput, tokenCount);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error('[sessions PATCH]', err);
+  try {
+    const body = (await req.json()) as EndSessionBody;
+    if (!body.sessionId || typeof body.rawOutput !== 'string' || typeof body.tokenCount !== 'number') {
+      return NextResponse.json(
+        { error: 'sessionId, rawOutput, and tokenCount are required' },
+        { status: 400 }
+      );
+    }
+
+    const result = await recordSessionEnd(
+      context.client,
+      body.sessionId,
+      body.rawOutput,
+      body.tokenCount
+    );
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error ?? 'Session update failed' }, { status: 403 });
+    }
+
+    return NextResponse.json({ ok: true, outputHash: result.outputHash });
+  } catch (error) {
+    console.error('[sessions PATCH]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

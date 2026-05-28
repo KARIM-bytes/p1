@@ -1,13 +1,48 @@
 import { supabaseAdmin } from './supabase';
+import type { BlockedAccessEvent, ExportSessionRow } from './types';
+
+function csvEscape(value: string | number | null | undefined): string {
+  const text = value == null ? '' : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function labelFor(map: Map<string, string>, key: string, prefix: string): string {
+  const existing = map.get(key);
+  if (existing) return existing;
+  const label = `${prefix} ${map.size + 1}`;
+  map.set(key, label);
+  return label;
+}
+
+function clientLabelFor(map: Map<string, string>, clientId: string): string {
+  const existing = map.get(clientId);
+  if (existing) return existing;
+  const letter = String.fromCharCode(65 + map.size);
+  const label = `Client ${letter}`;
+  map.set(clientId, label);
+  return label;
+}
 
 export async function generateComplianceCSV(fromDate: string, toDate: string): Promise<string> {
-  // STEP 1 — fetch sessions with joins
-  const { data: sessions } = await supabaseAdmin
+  const { data: sessions, error: sessionError } = await supabaseAdmin
     .from('ai_sessions')
     .select(`
-      *,
-      users!ai_sessions_user_id_fkey(name, role),
-      matters!ai_sessions_matter_id_fkey(matter_name, client_id,
+      id,
+      user_id,
+      matter_id,
+      session_start,
+      session_end,
+      query_type,
+      output_token_count,
+      output_hash,
+      review_status,
+      reviewer_id,
+      review_timestamp,
+      review_decision,
+      review_notes,
+      created_at,
+      users!ai_sessions_user_id_fkey(role),
+      matters!ai_sessions_matter_id_fkey(client_id, practice_area,
         clients!matters_client_id_fkey(name)
       )
     `)
@@ -15,79 +50,83 @@ export async function generateComplianceCSV(fromDate: string, toDate: string): P
     .lte('session_start', toDate)
     .order('session_start', { ascending: true });
 
-  // STEP 2 — fetch blocked events
-  const { data: blocked } = await supabaseAdmin
+  if (sessionError) throw new Error(sessionError.message);
+
+  const { data: blocked, error: blockedError } = await supabaseAdmin
     .from('blocked_access_log')
     .select('*')
     .gte('timestamp', fromDate)
     .lte('timestamp', toDate)
     .order('timestamp', { ascending: true });
 
-  // STEP 3 — build client anonymization map
+  if (blockedError) throw new Error(blockedError.message);
+
   const clientMap = new Map<string, string>();
-  const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-  let clientIndex = 0;
+  const matterMap = new Map<string, string>();
+  const actorMap = new Map<string, string>();
 
-  for (const session of sessions || []) {
-    const clientId = (session.matters as any)?.client_id;
-    if (clientId && !clientMap.has(clientId)) {
-      clientMap.set(clientId, `Client ${letters[clientIndex]}`);
-      clientIndex++;
-    }
-  }
+  const lines: string[] = [
+    'BRAHMO Compliance Engine - Compliance Export',
+    `Generated,${csvEscape(new Date().toISOString())}`,
+    `Range,${csvEscape(fromDate)},${csvEscape(toDate)}`,
+    '',
+    'AI SESSIONS',
+    [
+      'SESSION_ID',
+      'ACTOR',
+      'USER_ROLE',
+      'MATTER',
+      'CLIENT',
+      'PRACTICE_AREA',
+      'QUERY_TYPE',
+      'SESSION_START',
+      'SESSION_END',
+      'OUTPUT_HASH',
+      'TOKEN_COUNT',
+      'REVIEW_STATUS',
+      'REVIEWER',
+      'REVIEW_TIMESTAMP',
+      'REVIEW_DECISION',
+      'REVIEW_NOTES_PRESENT',
+    ].join(','),
+  ];
 
-  const getClientLabel = (clientId: string) =>
-    clientMap.get(clientId) || 'Client Unknown';
-
-  // STEP 4 — build CSV string
-  let csv = '';
-
-  csv += 'BRAHMO Compliance Engine — Compliance Export\n';
-  csv += `Generated: ${new Date().toISOString()}\n\n`;
-
-  csv += 'AI SESSIONS\n';
-  csv += 'SESSION_ID,USER_NAME,USER_ROLE,MATTER_NAME,CLIENT,QUERY_TYPE,SESSION_START,SESSION_END,OUTPUT_HASH,TOKEN_COUNT,REVIEW_STATUS,REVIEWER_ID,REVIEW_DECISION,REVIEW_NOTES\n';
-
-  for (const session of sessions || []) {
-    const s = session as any;
-    const clientLabel = getClientLabel(s.matters?.client_id);
+  for (const session of (sessions ?? []) as unknown as ExportSessionRow[]) {
+    const clientId = session.matters?.client_id ?? 'unknown_client';
     const row = [
-      s.id,
-      s.users?.name,
-      s.users?.role,
-      `"${s.matters?.matter_name || ''}"`,
-      clientLabel,
-      s.query_type,
-      s.session_start,
-      s.session_end || '',
-      s.output_hash || '',
-      s.output_token_count || '',
-      s.review_status,
-      s.reviewer_id || '',
-      s.review_decision || '',
-      `"${(s.review_notes || '').replace(/"/g, '""')}"`,
+      csvEscape(session.id),
+      csvEscape(labelFor(actorMap, session.user_id, 'User')),
+      csvEscape(session.users?.role ?? 'unknown'),
+      csvEscape(labelFor(matterMap, session.matter_id, 'Matter')),
+      csvEscape(clientLabelFor(clientMap, clientId)),
+      csvEscape(session.matters?.practice_area ?? 'unknown'),
+      csvEscape(session.query_type),
+      csvEscape(session.session_start),
+      csvEscape(session.session_end),
+      csvEscape(session.output_hash),
+      csvEscape(session.output_token_count),
+      csvEscape(session.review_status),
+      csvEscape(session.reviewer_id ? labelFor(actorMap, session.reviewer_id, 'User') : ''),
+      csvEscape(session.review_timestamp),
+      csvEscape(session.review_decision),
+      csvEscape(session.review_notes ? 'yes' : 'no'),
     ];
-    csv += row.join(',') + '\n';
+    lines.push(row.join(','));
   }
 
-  csv += '\n\n';
+  lines.push('', 'BLOCKED ACCESS LOG');
+  lines.push('EVENT_ID,ACTOR,ATTEMPTED_MATTER,REASON,TIMESTAMP');
 
-  csv += 'BLOCKED ACCESS LOG\n';
-  csv += 'EVENT_ID,USER_ID,ATTEMPTED_MATTER,REASON,DETAILS,TIMESTAMP\n';
-
-  for (const event of blocked || []) {
-    const e = event as any;
+  for (const event of (blocked ?? []) as BlockedAccessEvent[]) {
     const row = [
-      e.event_id,
-      e.user_id,
-      e.attempted_matter_id,
-      e.reason,
-      `"${(e.details || '').replace(/"/g, '""')}"`,
-      e.timestamp,
+      csvEscape(event.event_id),
+      csvEscape(labelFor(actorMap, event.user_id, 'User')),
+      csvEscape(labelFor(matterMap, event.attempted_matter_id, 'Matter')),
+      csvEscape(event.reason),
+      csvEscape(event.timestamp),
     ];
-    csv += row.join(',') + '\n';
+    lines.push(row.join(','));
   }
 
-  // STEP 5 — return
-  return csv;
+  return `${lines.join('\n')}\n`;
 }

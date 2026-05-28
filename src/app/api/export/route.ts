@@ -1,32 +1,30 @@
-// ============================================================
-// app/api/export/route.ts
-//
-// GET /api/export?from=2026-05-01&to=2026-05-31
-//
-// Returns: CSV file download
-// - Client names ANONYMIZED (never real names)
-// - Output column = SHA-256 hash, not full text
-// - Blocked access events included
-// - Triggers browser CSV download via Content-Disposition header
-// ============================================================
-
 import { NextRequest, NextResponse } from 'next/server';
 import { generateComplianceCSV } from '@/lib/compliance-export';
+import { getAuthenticatedContext, requirePartner } from '@/lib/supabase';
+
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
 
 export async function GET(req: NextRequest) {
-  const from = req.nextUrl.searchParams.get('from');
-  const to   = req.nextUrl.searchParams.get('to');
+  const context = await getAuthenticatedContext(req);
+  if (!context) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!requirePartner(context.profile)) {
+    return NextResponse.json({ error: 'Partner role required' }, { status: 403 });
+  }
 
-  if (!from || !to) {
+  const from = req.nextUrl.searchParams.get('from');
+  const to = req.nextUrl.searchParams.get('to');
+
+  if (!from || !to || !isIsoDate(from) || !isIsoDate(to)) {
     return NextResponse.json(
-      { error: '"from" and "to" date params are required (YYYY-MM-DD)' },
+      { error: '"from" and "to" date params are required as YYYY-MM-DD' },
       { status: 400 }
     );
   }
 
   try {
     const csv = await generateComplianceCSV(from, to);
-
     return new NextResponse(csv, {
       status: 200,
       headers: {
@@ -34,8 +32,8 @@ export async function GET(req: NextRequest) {
         'Content-Disposition': `attachment; filename="brahmo-compliance-${from}-to-${to}.csv"`,
       },
     });
-  } catch (err) {
-    console.error('[export]', err);
+  } catch (error) {
+    console.error('[export]', error);
     return NextResponse.json({ error: 'Export failed' }, { status: 500 });
   }
 }
