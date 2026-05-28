@@ -201,6 +201,24 @@ CREATE POLICY "Partners review sessions for permitted matters" ON ai_sessions
     )
   );
 
+-- PRIVILEGE CLASS: Paralegals are blocked from attorney-client privileged sessions.
+-- This is a RESTRICTIVE policy — it limits the permissive policies above.
+-- Even if the matter-level wall allows a paralegal, privilege_class overrides.
+DROP POLICY IF EXISTS "Privilege class restricts paralegal access" ON ai_sessions;
+CREATE POLICY "Privilege class restricts paralegal access" ON ai_sessions
+  AS RESTRICTIVE
+  FOR SELECT USING (
+    NOT (
+      privilege_class IN ('attorney_client', 'litigation', 'work_product')
+      AND EXISTS (
+        SELECT 1
+        FROM users u
+        WHERE u.id = auth.uid()
+          AND u.role = 'paralegal'
+      )
+    )
+  );
+
 -- BLOCKED ACCESS LOG: any authenticated user may append their own denied
 -- event. Only partners may read the complete log.
 DROP POLICY IF EXISTS "Users append own blocked events" ON blocked_access_log;

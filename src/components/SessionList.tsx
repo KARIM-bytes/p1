@@ -62,7 +62,20 @@ export default function SessionList({
             {sessions.map((session) => {
               const currentTime = now || new Date(session.session_start).getTime();
               const hoursElapsed = (currentTime - new Date(session.session_start).getTime()) / 36e5;
-              const slaBreached = session.review_status === 'pending' && hoursElapsed > 48;
+
+              // Per-type SLA thresholds (Problem 4 — Review SLA tracking):
+              // draft   = court filings → must review within 24h
+              // review  = client comms  → must review within 48h
+              // research = internal     → no mandatory review SLA
+              const SLA_HOURS: Record<string, number | null> = {
+                draft:    24,
+                review:   48,
+                research: null,
+              };
+              const slaThreshold = SLA_HOURS[session.query_type ?? 'research'] ?? null;
+              const slaBreached  = session.review_status === 'pending'
+                && slaThreshold !== null
+                && hoursElapsed > slaThreshold;
 
               return (
                 <tr key={session.id} style={slaBreached ? { background: 'rgba(250,204,21,0.05)' } : {}}>
@@ -86,7 +99,9 @@ export default function SessionList({
                       {session.review_status}
                     </span>
                     {slaBreached && (
-                      <span className="badge badge-red" style={{ marginLeft: '6px' }}>SLA breach</span>
+                      <span className="badge badge-red" style={{ marginLeft: '6px' }}>
+                        SLA breach ({session.query_type === 'draft' ? '24h' : '48h'})
+                      </span>
                     )}
                   </td>
                   {showReviewDetails && (
