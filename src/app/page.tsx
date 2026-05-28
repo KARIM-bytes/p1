@@ -12,6 +12,7 @@ import ExportButton from '@/components/ExportButton';
 import StatsCards from '@/components/StatsCards';
 import MatterList from '@/components/MatterList';
 import PermissionManager from '@/components/PermissionManager';
+import COLPAlerts from '@/components/COLPAlerts';
 
 type TabKey = 'sessions' | 'blocked' | 'review' | 'export';
 
@@ -355,7 +356,10 @@ export default function Home() {
           )}
 
           {activeTab === 'blocked' && (
-            <BlockedAccessLog events={blockedEvents} loading={loading} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <COLPAlerts blockedEvents={blockedEvents} />
+              <BlockedAccessLog events={blockedEvents} loading={loading} />
+            </div>
           )}
 
           {activeTab === 'review' && (

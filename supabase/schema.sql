@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS ai_sessions (
   session_start       TIMESTAMPTZ NOT NULL,
   session_end         TIMESTAMPTZ,
   query_type          TEXT CHECK (query_type IN ('draft', 'research', 'review')),
+  privilege_class     TEXT DEFAULT 'standard' CHECK (privilege_class IN ('standard', 'attorney_client', 'litigation', 'work_product')),
   output_token_count  INTEGER,
   output_hash         TEXT,
   review_status       TEXT DEFAULT 'pending' CHECK (review_status IN ('pending', 'reviewed', 'rejected')),
@@ -61,7 +62,8 @@ CREATE TABLE IF NOT EXISTS blocked_access_log (
   attempted_matter_id TEXT NOT NULL,
   reason              TEXT NOT NULL,
   details             TEXT,
-  timestamp           TIMESTAMPTZ DEFAULT NOW()
+  timestamp           TIMESTAMPTZ DEFAULT NOW(),
+  chain_hash          TEXT          -- SHA-256(prev_chain_hash || event_id || user_id || attempted_matter_id || timestamp)
 );
 
 ALTER TABLE clients            ENABLE ROW LEVEL SECURITY;
