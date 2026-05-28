@@ -25,7 +25,7 @@ async function readJson<T>(response: Response): Promise<T> {
 
 export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [sessions, setSessions] = useState<AiSession[]>([]);
+  const [sessions, setSessions] = useState<SessionWithJoins[]>([]);
   const [pendingSessions, setPendingSessions] = useState<SessionWithJoins[]>([]);
   const [blockedEvents, setBlockedEvents] = useState<BlockedAccessEvent[]>([]);
   const [matters, setMatters] = useState<Matter[]>([]);

@@ -1,9 +1,9 @@
 'use client';
 
-import { AiSession } from '@/lib/types';
+import type { SessionWithJoins } from '@/lib/types';
 
 interface SessionListProps {
-  sessions: AiSession[];
+  sessions: SessionWithJoins[];
   loading: boolean;
   showReviewDetails?: boolean;
   now?: number;
@@ -69,10 +69,12 @@ export default function SessionList({
                   <td style={{ color: 'var(--text-primary)' }}>
                     {new Date(session.session_start).toLocaleDateString()}
                   </td>
-                  <td className="font-mono" style={{ fontSize: '0.75rem' }}>
-                    {session.user_id.slice(0, 8)}
+                  <td style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
+                    {(session as SessionWithJoins).users?.name ?? session.user_id.slice(0, 8)}
                   </td>
-                  <td style={{ color: 'var(--text-primary)' }}>{session.matter_id}</td>
+                  <td style={{ color: 'var(--text-primary)' }}>
+                    {(session as SessionWithJoins).matters?.matter_name ?? session.matter_id}
+                  </td>
                   <td>
                     <span className="badge badge-purple">{session.query_type ?? 'unknown'}</span>
                   </td>
