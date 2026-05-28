@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BRAHMO Demo 1 – Normal AI Session</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0A0A0A;color:#F4F4F5;font-family:'Inter',sans-serif;overflow:hidden;width:1920px;height:1080px;position:relative}
+:root{--accent:#00FF9F;--surface:#111111;--surface-hi:#1A1A1A;--border:#222;--text2:#A1A1AA;--text3:#71717A;--purple:#A855F7}
+
+/* ─ Layout ─ */
+.header{position:fixed;top:0;left:0;right:0;height:60px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:16px;z-index:100}
+.logo-box{width:36px;height:36px;border-radius:10px;background:rgba(0,255,159,.12);border:1px solid rgba(0,255,159,.3);display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+.brand{font-weight:700;font-size:1rem;letter-spacing:-.01em}
+.sub-brand{font-size:.7rem;color:var(--text3)}
+.user-bar{position:fixed;top:60px;left:0;right:0;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:12px;z-index:100}
+.label-sm{font-size:.75rem;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+.select-mock{height:38px;padding:0 14px;background:var(--surface-hi);border:1px solid #333;border-radius:10px;color:#F4F4F5;font-size:.85rem;display:flex;align-items:center;gap:8px;min-width:200px;transition:border-color .3s}
+.select-mock.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,255,159,.15)}
+.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:9999px;font-size:.7rem;font-weight:600}
+.badge-green{background:rgba(0,255,159,.12);color:var(--accent);border:1px solid rgba(0,255,159,.25)}
+.badge-purple{background:rgba(168,85,247,.12);color:var(--purple);border:1px solid rgba(168,85,247,.25)}
+.badge-amber{background:rgba(250,204,21,.1);color:#FACC15;border:1px solid rgba(250,204,21,.25)}
+.badge-demo{background:rgba(250,204,21,.1);color:#FACC15;border:1px solid rgba(250,204,21,.25)}
+.content{position:fixed;top:112px;left:0;right:0;bottom:0;padding:28px 32px;overflow:hidden}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-card.green::before{background:var(--accent)}
+.stat-card.purple::before{background:var(--purple)}
+.stat-card.amber::before{background:#FACC15}
+.stat-card.red::before{background:#EF4444}
+.stat-label{font-size:.7rem;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+.stat-val{font-size:2.2rem;font-weight:700;letter-spacing:-.03em;margin-top:6px}
+.stat-val.green{color:var(--accent)}
+.stat-val.purple{color:var(--purple)}
+.stat-val.amber{color:#FACC15}
+.stat-val.red{color:#EF4444}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:24px}
+.tab{padding:10px 18px;font-size:.82rem;font-weight:500;color:var(--text3);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:6px}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 10px 15px -3px rgba(0,0,0,.4)}
+.panel-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:.9rem;font-weight:600}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+thead th{background:var(--surface-hi);color:var(--text3);font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:12px 16px;text-align:left;border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+tbody tr:hover{background:var(--surface-hi)}
+tbody td{padding:12px 16px;color:var(--text2)}
+tbody td.light{color:#F4F4F5}
+.mono{font-family:'JetBrains Mono',monospace;font-size:.75rem}
+.new-row{background:rgba(0,255,159,.06)!important;border-left:3px solid var(--accent)!important}
+
+/* ─ Access check card ─ */
+.access-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:20px}
+.access-title{font-size:.9rem;font-weight:600;margin-bottom:4px}
+.access-sub{font-size:.8rem;color:var(--text3);margin-bottom:16px}
+.row-flex{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.select-sm{height:40px;padding:0 14px;background:var(--surface-hi);border:1px solid #333;border-radius:10px;color:#F4F4F5;font-size:.85rem;display:flex;align-items:center;min-width:220px}
+.btn-primary{height:40px;padding:0 20px;background:var(--accent);color:#000;border-radius:10px;font-size:.85rem;font-weight:700;display:flex;align-items:center;border:none;cursor:pointer}
+.result-banner{margin-top:14px;padding:10px 16px;border-radius:10px;font-size:.82rem;font-weight:500;display:none}
+.result-banner.clear{background:rgba(0,255,159,.12);color:var(--accent);border:1px solid rgba(0,255,159,.25)}
+
+/* ─ Cursor ─ */
+#cursor{position:fixed;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 0 0 2px rgba(0,0,0,.5),0 0 12px rgba(255,255,255,.4);pointer-events:none;z-index:9999;transition:transform .15s;transform:translate(-50%,-50%)}
+#cursor.click{transform:translate(-50%,-50%) scale(.7)}
+
+/* ─ Overlays ─ */
+.title-screen{position:fixed;inset:0;background:#0A0A0A;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;transition:opacity .8s}
+.title-screen.hide{opacity:0;pointer-events:none}
+.title-tag{font-size:.8rem;font-weight:600;color:var(--accent);letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px}
+.title-h1{font-size:3rem;font-weight:700;letter-spacing:-.03em;text-align:center;line-height:1.1}
+.title-sub{font-size:1.1rem;color:var(--text2);margin-top:16px;text-align:center}
+
+.end-screen{position:fixed;inset:0;background:#0A0A0A;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .8s}
+.end-screen.show{opacity:1}
+.end-line{font-size:1.15rem;color:var(--text2);text-align:center;max-width:700px;line-height:1.7;margin-top:20px}
+
+/* ─ Callout ─ */
+.callout{position:fixed;background:rgba(0,255,159,.15);border:1px solid rgba(0,255,159,.4);color:var(--accent);font-size:.82rem;font-weight:600;padding:8px 14px;border-radius:10px;pointer-events:none;z-index:500;opacity:0;transition:opacity .4s;white-space:nowrap}
+.callout.show{opacity:1}
+.callout::before{content:'▲';position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:.6rem;color:rgba(0,255,159,.6)}
+
+/* ─ Highlight ring ─ */
+.ring{position:fixed;border:2px solid var(--accent);border-radius:12px;pointer-events:none;z-index:498;opacity:0;transition:all .4s;box-shadow:0 0 20px rgba(0,255,159,.25)}
+.ring.show{opacity:1}
+
+/* ─ Step label ─ */
+.step-label{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:rgba(17,17,17,.95);border:1px solid var(--border);border-radius:12px;padding:10px 24px;font-size:.9rem;font-weight:500;color:#F4F4F5;z-index:600;opacity:0;transition:opacity .4s;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.step-label.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- Title screen -->
+<div class="title-screen" id="titleScreen">
+  <div class="title-tag">BRAHMO Compliance Engine · Demo 1</div>
+  <div class="title-h1">Normal AI Session</div>
+  <div class="title-sub">Priya creates an AI session on an authorised matter —<br>audit record appears in real-time</div>
+</div>
+
+<!-- End screen -->
+<div class="end-screen" id="endScreen">
+  <div class="title-tag">BRAHMO Compliance Engine</div>
+  <div class="title-h1">Session Logged &amp; Audited</div>
+  <div class="end-line">"This demonstrates database-enforced ethical walls and<br>tamper-proof auditing across all AI interactions."</div>
+</div>
+
+<!-- Cursor -->
+<div id="cursor"></div>
+<!-- Highlight ring -->
+<div class="ring" id="ring"></div>
+<!-- Callout -->
+<div class="callout" id="callout"></div>
+<!-- Step label -->
+<div class="step-label" id="stepLabel"></div>
+
+<!-- UI -->
+<div class="header">
+  <div class="logo-box">⬡</div>
+  <div>
+    <div class="brand">BRAHMO</div>
+    <div class="sub-brand">Compliance Engine</div>
+  </div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px" id="userPill" style="opacity:0">
+    <div style="width:30px;height:30px;border-radius:50%;background:rgba(0,255,159,.12);border:1px solid rgba(0,255,159,.3);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;color:var(--accent)">P</div>
+    <div>
+      <div style="font-size:.82rem;font-weight:600">Priya Mehta</div>
+      <div style="font-size:.68rem;color:var(--text3)">associate</div>
+    </div>
+  </div>
+</div>
+
+<div class="user-bar">
+  <span class="label-sm">Demo User</span>
+  <div class="select-mock" id="userSelect">Select a user…</div>
+  <span class="badge badge-green" id="roleBadge" style="display:none">ASSOCIATE</span>
+  <span class="badge badge-demo">DEMO MODE</span>
+</div>
+
+<div class="content">
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card green"><div class="stat-label">Total Sessions</div><div class="stat-val green" id="statTotal">10</div></div>
+    <div class="stat-card purple"><div class="stat-label">Reviewed</div><div class="stat-val purple">7</div></div>
+    <div class="stat-card amber"><div class="stat-label">Pending Review</div><div class="stat-val amber" id="statPending">3</div></div>
+    <div class="stat-card red"><div class="stat-label">Blocked Events</div><div class="stat-val red">3</div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active">◈ Sessions</div>
+  </div>
+
+  <!-- Access check -->
+  <div class="access-card" id="accessCard">
+    <div class="access-title">Live Access Check</div>
+    <div class="access-sub">Simulate an AI session request against the ethical wall engine.</div>
+    <div class="row-flex">
+      <div class="select-sm" id="matterSelect">matter_1 / Rajesh Bail</div>
+      <div class="btn-primary" id="checkBtn">Check Access &amp; Start Session</div>
+    </div>
+    <div class="result-banner clear" id="resultBanner">✓ CLEAR: session sess_11 created and audit trail started.</div>
+  </div>
+
+  <!-- Sessions table -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">AI Sessions</span>
+      <span class="badge badge-green" id="sessionCount">10 records</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>User</th><th>Matter</th><th>Type</th><th>Output Hash</th><th>Status</th>
+        </tr></thead>
+        <tbody id="sessionTbody">
+          <tr><td class="light">2026-05-12</td><td class="mono">a165eb17</td><td class="light">matter_2</td><td><span class="badge badge-purple">review</span></td><td class="mono">k7l8m9n0o1p2…</td><td><span class="badge badge-green">reviewed</span></td></tr>
+          <tr><td class="light">2026-05-10</td><td class="mono">335f7d86</td><td class="light">matter_1</td><td><span class="badge badge-purple">draft</span></td><td class="mono">g3h4i5j6k7l8…</td><td><span class="badge badge-green">reviewed</span></td></tr>
+          <tr><td class="light">2026-05-08</td><td class="mono">ff1a4163</td><td class="light">matter_1</td><td><span class="badge badge-purple">research</span></td><td class="mono">c9d0e1f2g3h4…</td><td><span class="badge badge-amber">pending</span></td></tr>
+          <tr><td class="light">2026-05-05</td><td class="mono">dcc22e7e</td><td class="light">matter_3</td><td><span class="badge badge-purple">draft</span></td><td class="mono">q7r8s9t0u1v2…</td><td><span class="badge badge-amber">pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const cursor = $('cursor');
+const ring = $('ring');
+const callout = $('callout');
+const stepLabel = $('stepLabel');
+let cx = 960, cy = 540;
+
+function moveTo(x, y, ms=800){
+  return new Promise(r=>{
+    cursor.style.transition=`left ${ms}ms cubic-bezier(.4,0,.2,1), top ${ms}ms cubic-bezier(.4,0,.2,1)`;
+    cursor.style.left=x+'px'; cursor.style.top=y+'px';
+    setTimeout(r, ms);
+  });
+}
+function click(){
+  cursor.classList.add('click');
+  setTimeout(()=>cursor.classList.remove('click'),200);
+}
+function showStep(txt){
+  stepLabel.textContent=txt; stepLabel.classList.add('show');
+}
+function hideStep(){ stepLabel.classList.remove('show'); }
+function showCallout(txt, x, y){
+  callout.textContent=txt;
+  callout.style.left=x+'px'; callout.style.top=y+'px';
+  callout.classList.add('show');
+}
+function hideCallout(){ callout.classList.remove('show'); }
+function showRing(x,y,w,h){
+  ring.style.left=x+'px'; ring.style.top=y+'px';
+  ring.style.width=w+'px'; ring.style.height=h+'px';
+  ring.classList.add('show');
+}
+function hideRing(){ ring.classList.remove('show'); }
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+async function run(){
+  cursor.style.left='960px'; cursor.style.top='540px';
+  cursor.style.transition='none';
+
+  // Title hold
+  await wait(2500);
+  $('titleScreen').classList.add('hide');
+  await wait(900);
+
+  // Step 1: highlight user switcher
+  showStep('Step 1 — Switch demo user to Priya Mehta');
+  await moveTo(280, 86, 1000);
+  showRing(135, 68, 360, 44);
+  showCallout('Click to select demo user', 200, 40);
+  await wait(1200);
+
+  click();
+  $('userSelect').textContent = 'Priya Mehta (associate)';
+  $('userSelect').classList.add('active');
+  $('roleBadge').style.display='inline-flex';
+  hideCallout();
+  await wait(800);
+  $('userSelect').classList.remove('active');
+  hideRing();
+  showCallout('✓ Signed in as Priya — associate role', 200, 40);
+  await wait(1500);
+  hideCallout();
+  hideStep();
+
+  // Step 2: highlight matter select
+  showStep('Step 2 — Select Matter 1 (Rajesh Bail)');
+  await moveTo(500, 608, 900);
+  showRing(200, 590, 320, 44);
+  showCallout('Matter 1 is in scope for Priya', 280, 562);
+  await wait(1500);
+  hideCallout();
+  hideRing();
+
+  // Step 3: click Check Access button
+  showStep('Step 3 — Trigger access check + start session');
+  await moveTo(720, 608, 700);
+  showRing(534, 590, 250, 44);
+  await wait(600);
+  click();
+  $('checkBtn').style.opacity='0.6';
+  await wait(500);
+  $('checkBtn').style.opacity='1';
+  showCallout('RLS verified — access CLEAR', 560, 562);
+  await wait(1200);
+  hideCallout();
+  hideRing();
+
+  // Step 4: result banner appears
+  showStep('Step 4 — Session created, audit record written');
+  $('resultBanner').style.display='block';
+  await wait(400);
+  showRing(200, 628, 700, 40);
+  showCallout('New session ID logged to ai_sessions table', 350, 598);
+  await wait(1800);
+  hideRing();
+  hideCallout();
+
+  // Step 5: new table row
+  showStep('Step 5 — Audit row appears in session log');
+  const tbody = $('sessionTbody');
+  const newRow = document.createElement('tr');
+  newRow.className='new-row';
+  newRow.innerHTML=`<td class="light">2026-05-28</td><td class="mono">335f7d86</td><td class="light">matter_1</td><td><span class="badge badge-purple">research</span></td><td class="mono">–– pending ––</td><td><span class="badge badge-amber">pending</span></td>`;
+  tbody.insertBefore(newRow, tbody.firstChild);
+  $('sessionCount').textContent='11 records';
+  $('statTotal').textContent='11';
+
+  await moveTo(960, 680, 800);
+  showRing(24, 665, 1870, 46);
+  showCallout('↑ New real-time audit entry — tamper-proof from creation', 700, 638);
+  await wait(2500);
+  hideRing();
+  hideCallout();
+  hideStep();
+
+  // End
+  await wait(600);
+  $('endScreen').classList.add('show');
+}
+
+run();
+</script>
+</body>
+</html>

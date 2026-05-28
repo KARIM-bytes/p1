@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BRAHMO Demo Launcher</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0A0A0A;--surface:#111111;--surface-hi:#1A1A1A;
+  --border:#222;--border-hi:#333;
+  --accent:#00FF9F;--purple:#A855F7;--amber:#FACC15;--danger:#EF4444;
+  --t1:#F4F4F5;--t2:#A1A1AA;--t3:#71717A;
+}
+body{background:var(--bg);color:var(--t1);font-family:'Inter',sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* ── Header ── */
+header{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 48px;height:64px;display:flex;align-items:center;gap:14px;
+  position:sticky;top:0;z-index:50;
+}
+.logo{width:38px;height:38px;border-radius:10px;background:rgba(0,255,159,.12);
+  border:1px solid rgba(0,255,159,.3);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0}
+.brand{font-weight:700;font-size:1.05rem;letter-spacing:-.01em}
+.brand-sub{font-size:.72rem;color:var(--t3)}
+.pill{margin-left:auto;background:rgba(0,255,159,.1);border:1px solid rgba(0,255,159,.25);
+  color:var(--accent);font-size:.72rem;font-weight:600;padding:4px 12px;border-radius:9999px;letter-spacing:.04em}
+
+/* ── Hero ── */
+.hero{padding:72px 48px 48px;text-align:center;max-width:860px;margin:0 auto}
+.hero-tag{font-size:.75rem;font-weight:600;color:var(--accent);letter-spacing:.14em;
+  text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;justify-content:center;gap:8px}
+.hero-tag::before,.hero-tag::after{content:'';flex:1;max-width:60px;height:1px;background:rgba(0,255,159,.3)}
+.hero-h1{font-size:3rem;font-weight:700;letter-spacing:-.03em;line-height:1.1;margin-bottom:16px}
+.hero-sub{font-size:1.05rem;color:var(--t2);line-height:1.7;max-width:600px;margin:0 auto}
+
+/* ── Grid ── */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;padding:0 48px 80px;max-width:1400px;margin:0 auto}
+
+/* ── Demo Card ── */
+.demo-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  overflow:hidden;transition:border-color .25s,transform .25s,box-shadow .25s;
+  display:flex;flex-direction:column;cursor:pointer;text-decoration:none;
+}
+.demo-card:hover{
+  border-color:var(--border-hi);
+  transform:translateY(-4px);
+  box-shadow:0 20px 40px rgba(0,0,0,.5);
+}
+
+/* Preview pane */
+.preview{
+  width:100%;aspect-ratio:16/9;position:relative;overflow:hidden;
+  background:var(--surface-hi);border-bottom:1px solid var(--border);
+}
+.preview iframe{
+  width:1920px;height:1080px;
+  transform-origin:top left;
+  transform:scale(var(--scale));
+  pointer-events:none;border:none;
+}
+.preview-overlay{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.35);opacity:0;transition:opacity .25s;
+}
+.demo-card:hover .preview-overlay{opacity:1}
+.play-btn{
+  width:64px;height:64px;border-radius:50%;
+  background:var(--accent);display:flex;align-items:center;justify-content:center;
+  font-size:1.6rem;color:#000;box-shadow:0 0 32px rgba(0,255,159,.5);
+  transform:scale(.85);transition:transform .2s;
+}
+.demo-card:hover .play-btn{transform:scale(1)}
+
+/* Info pane */
+.card-body{padding:22px 24px 20px;flex:1;display:flex;flex-direction:column;gap:10px}
+.card-top{display:flex;align-items:center;gap:10px}
+.num{
+  width:32px;height:32px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.8rem;font-weight:700;
+}
+.card-title{font-size:1rem;font-weight:700;letter-spacing:-.01em;color:var(--t1)}
+.card-desc{font-size:.85rem;color:var(--t2);line-height:1.65;flex:1}
+.card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+.card-tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:.68rem;font-weight:600;padding:2px 9px;border-radius:9999px}
+
+/* Launch button */
+.launch{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--accent);color:#000;font-weight:700;font-size:.8rem;
+  padding:8px 18px;border-radius:10px;border:none;cursor:pointer;
+  transition:background .2s,box-shadow .2s;white-space:nowrap;text-decoration:none;
+}
+.launch:hover{background:#00e68f;box-shadow:0 0 20px rgba(0,255,159,.3)}
+
+/* Colour variants */
+.c-green .num{background:rgba(0,255,159,.12);color:var(--accent)}
+.c-green:hover{border-color:rgba(0,255,159,.35)}
+.c-red  .num{background:rgba(239,68,68,.12);color:var(--danger)}
+.c-red:hover{border-color:rgba(239,68,68,.35)}
+.c-purple .num{background:rgba(168,85,247,.12);color:var(--purple)}
+.c-purple:hover{border-color:rgba(168,85,247,.35)}
+.c-amber .num{background:rgba(250,204,21,.1);color:var(--amber)}
+.c-amber:hover{border-color:rgba(250,204,21,.35)}
+.tag-green{background:rgba(0,255,159,.1);color:var(--accent);border:1px solid rgba(0,255,159,.2)}
+.tag-red  {background:rgba(239,68,68,.1);color:var(--danger);border:1px solid rgba(239,68,68,.2)}
+.tag-purple{background:rgba(168,85,247,.1);color:var(--purple);border:1px solid rgba(168,85,247,.2)}
+.tag-amber{background:rgba(250,204,21,.09);color:var(--amber);border:1px solid rgba(250,204,21,.2)}
+
+/* Separator */
+.sep{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:0 48px 40px}
+.section-label{padding:0 48px;font-size:.75rem;font-weight:600;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:20px}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 2s ease-in-out infinite;margin-right:4px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⬡</div>
+  <div>
+    <div class="brand">BRAHMO Compliance Engine</div>
+    <div class="brand-sub">Demo Walkthrough Suite</div>
+  </div>
+  <div class="pill"><span class="dot"></span>4 WORKFLOWS</div>
+</header>
+
+<div class="hero">
+  <div class="hero-tag">Interactive Demo Suite</div>
+  <div class="hero-h1">Database-Enforced<br>Ethical Walls</div>
+  <div class="hero-sub">
+    Each demo auto-plays a workflow from the BRAHMO Compliance Engine — showing RLS, audit trails,
+    partner review, and regulatory export in action.
+  </div>
+</div>
+
+<div class="section-label">Workflow Demos — Click any card to launch full-screen</div>
+
+<div class="grid">
+
+  <!-- Demo 1 -->
+  <a class="demo-card c-green" href="demo1-normal-session.html" target="_blank">
+    <div class="preview" style="--scale:0.365">
+      <iframe src="demo1-normal-session.html" loading="lazy" title="Demo 1"></iframe>
+      <div class="preview-overlay"><div class="play-btn">▶</div></div>
+    </div>
+    <div class="card-body">
+      <div class="card-top">
+        <div class="num c-green">01</div>
+        <div class="card-title">Normal AI Session</div>
+      </div>
+      <div class="card-desc">
+        Priya switches in, selects an authorised matter, triggers an access check,
+        and a new audit record appears in the session log in real-time.
+      </div>
+      <div class="card-footer">
+        <div class="card-tags">
+          <span class="tag tag-green">Access Check</span>
+          <span class="tag tag-green">Audit Log</span>
+          <span class="tag tag-green">RLS ✓</span>
+        </div>
+        <a class="launch" href="demo1-normal-session.html" target="_blank">▶ Launch</a>
+      </div>
+    </div>
+  </a>
+
+  <!-- Demo 2 -->
+  <a class="demo-card c-red" href="demo2-ethical-wall.html" target="_blank">
+    <div class="preview" style="--scale:0.365">
+      <iframe src="demo2-ethical-wall.html" loading="lazy" title="Demo 2"></iframe>
+      <div class="preview-overlay"><div class="play-btn" style="background:#EF4444;box-shadow:0 0 32px rgba(239,68,68,.5)">▶</div></div>
+    </div>
+    <div class="card-body">
+      <div class="card-top">
+        <div class="num c-red">02</div>
+        <div class="card-title">Ethical Wall Breach</div>
+      </div>
+      <div class="card-desc">
+        Priya attempts to access a restricted matter — RLS returns zero rows,
+        the violation is auto-logged, and a direct UPDATE on the log is rejected by a DB trigger.
+      </div>
+      <div class="card-footer">
+        <div class="card-tags">
+          <span class="tag tag-red">Blocked Access</span>
+          <span class="tag tag-red">Append-only</span>
+          <span class="tag tag-red">Tamper-proof</span>
+        </div>
+        <a class="launch" href="demo2-ethical-wall.html" target="_blank" style="background:#EF4444">▶ Launch</a>
+      </div>
+    </div>
+  </a>
+
+  <!-- Demo 3 -->
+  <a class="demo-card c-purple" href="demo3-isolation-proof.html" target="_blank">
+    <div class="preview" style="--scale:0.365">
+      <iframe src="demo3-isolation-proof.html" loading="lazy" title="Demo 3"></iframe>
+      <div class="preview-overlay"><div class="play-btn" style="background:#A855F7;box-shadow:0 0 32px rgba(168,85,247,.5)">▶</div></div>
+    </div>
+    <div class="card-body">
+      <div class="card-top">
+        <div class="num c-purple">03</div>
+        <div class="card-title">Isolation Proof</div>
+      </div>
+      <div class="card-desc">
+        Switch to Rahul — he sees only Matter 3. A live SQL query confirms exactly 1 row returned.
+        A direct query for Matter 1 returns 0 rows. The active RLS policy is displayed.
+      </div>
+      <div class="card-footer">
+        <div class="card-tags">
+          <span class="tag tag-purple">Row-level Security</span>
+          <span class="tag tag-purple">SQL Proof</span>
+          <span class="tag tag-purple">1 row</span>
+        </div>
+        <a class="launch" href="demo3-isolation-proof.html" target="_blank" style="background:#A855F7">▶ Launch</a>
+      </div>
+    </div>
+  </a>
+
+  <!-- Demo 4 -->
+  <a class="demo-card c-amber" href="demo4-partner-review.html" target="_blank">
+    <div class="preview" style="--scale:0.365">
+      <iframe src="demo4-partner-review.html" loading="lazy" title="Demo 4"></iframe>
+      <div class="preview-overlay"><div class="play-btn" style="background:#FACC15;box-shadow:0 0 32px rgba(250,204,21,.5)">▶</div></div>
+    </div>
+    <div class="card-body">
+      <div class="card-top">
+        <div class="num c-amber">04</div>
+        <div class="card-title">Partner Review</div>
+      </div>
+      <div class="card-desc">
+        Advocate Sharma reviews a pending draft session, types approval notes, and clicks Approve.
+        The full audit trail — reviewer ID, timestamp, decision, notes — is written immediately.
+      </div>
+      <div class="card-footer">
+        <div class="card-tags">
+          <span class="tag tag-amber">Partner-only</span>
+          <span class="tag tag-amber">Review Queue</span>
+          <span class="tag tag-amber">Audit Trail</span>
+        </div>
+        <a class="launch" href="demo4-partner-review.html" target="_blank" style="background:#FACC15;color:#000">▶ Launch</a>
+      </div>
+    </div>
+  </a>
+
+</div>
+
+<div class="sep"></div>
+
+<div style="text-align:center;padding-bottom:48px;color:var(--t3);font-size:.8rem;line-height:1.8">
+  BRAHMO Compliance Engine · Ethical walls · Append-only audit · Regulator-ready export<br>
+  <span style="color:var(--t3);font-family:'JetBrains Mono',monospace;font-size:.72rem">
+    Open each demo full-screen (1920×1080) and record with OBS or Loom
+  </span>
+</div>
+
+</body>
+</html>

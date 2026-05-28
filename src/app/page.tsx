@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { authFetch } from '@/lib/api-client';
-import type { User, AiSession, BlockedAccessEvent, DashboardStats, ReviewDecision, Matter } from '@/lib/types';
+import type { User, AiSession, BlockedAccessEvent, DashboardStats, ReviewDecision, Matter, SessionWithJoins } from '@/lib/types';
 import UserSwitcher from '@/components/UserSwitcher';
 import SessionList from '@/components/SessionList';
 import BlockedAccessLog from '@/components/BlockedAccessLog';
@@ -11,6 +11,7 @@ import ReviewPanel from '@/components/ReviewPanel';
 import ExportButton from '@/components/ExportButton';
 import StatsCards from '@/components/StatsCards';
 import MatterList from '@/components/MatterList';
+import PermissionManager from '@/components/PermissionManager';
 
 type TabKey = 'sessions' | 'blocked' | 'review' | 'export';
 
@@ -25,10 +26,11 @@ async function readJson<T>(response: Response): Promise<T> {
 export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [sessions, setSessions] = useState<AiSession[]>([]);
-  const [pendingSessions, setPendingSessions] = useState<AiSession[]>([]);
+  const [pendingSessions, setPendingSessions] = useState<SessionWithJoins[]>([]);
   const [blockedEvents, setBlockedEvents] = useState<BlockedAccessEvent[]>([]);
   const [matters, setMatters] = useState<Matter[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [permissions, setPermissions] = useState<{ user_id: string; matter_id: string; permission_level: string }[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>('sessions');
   const [loading, setLoading] = useState(true);
   const [demoMatterId, setDemoMatterId] = useState('matter_1');
@@ -40,7 +42,6 @@ export default function Home() {
   async function fetchData() {
     setLoading(true);
     setDemoMessage(null);
-
     try {
       const { data: authData } = await supabase.auth.getUser();
       if (!authData.user) {
@@ -52,24 +53,29 @@ export default function Home() {
         setStats(null);
         return;
       }
-
+      await supabase.auth.refreshSession();
       const { data: profile, error: profileError } = await supabase
         .from('users')
         .select('id, name, email, role, sra_number, created_at')
         .eq('id', authData.user.id)
-        .single();
+        .maybeSingle();
 
-      if (profileError || !profile) {
-        throw new Error(profileError?.message ?? 'Profile not found');
+      if (profileError) {
+        console.error('[fetchData] Profile query error:', profileError.message, profileError.code);
+        throw new Error(`Profile query failed: ${profileError.message}`);
+      }
+      if (!profile) {
+        console.error('[fetchData] No profile found for user:', authData.user.id);
+        throw new Error('Profile not found in database');
       }
 
       const typedProfile = profile as User;
       setCurrentUser(typedProfile);
 
       const [mattersData, sessionsData, statsData] = await Promise.all([
-        authFetch('/api/matters').then((response) => readJson<{ matters: Matter[] }>(response)),
-        authFetch('/api/sessions').then((response) => readJson<{ sessions: AiSession[] }>(response)),
-        authFetch('/api/stats').then((response) => readJson<{ stats: DashboardStats }>(response)),
+        authFetch('/api/matters').then((r) => readJson<{ matters: Matter[] }>(r)),
+        authFetch('/api/sessions').then((r) => readJson<{ sessions: AiSession[] }>(r)),
+        authFetch('/api/stats').then((r) => readJson<{ stats: DashboardStats }>(r)),
       ]);
 
       setMatters(mattersData.matters);
@@ -78,15 +84,18 @@ export default function Home() {
       setNow(new Date().getTime());
 
       if (typedProfile.role === 'partner') {
-        const [blockedData, reviewData] = await Promise.all([
-          authFetch('/api/blocked-log').then((response) => readJson<{ events: BlockedAccessEvent[] }>(response)),
-          authFetch('/api/review').then((response) => readJson<{ sessions: AiSession[] }>(response)),
+        const [blockedData, reviewData, permsData] = await Promise.all([
+          authFetch('/api/blocked-log').then((r) => readJson<{ events: BlockedAccessEvent[] }>(r)),
+          authFetch('/api/review').then((r) => readJson<{ sessions: AiSession[] }>(r)),
+          authFetch('/api/permissions').then((r) => readJson<{ permissions: { user_id: string; matter_id: string; permission_level: string }[] }>(r)),
         ]);
         setBlockedEvents(blockedData.events);
-        setPendingSessions(reviewData.sessions);
+        setPendingSessions(reviewData.sessions as SessionWithJoins[]);
+        setPermissions(permsData.permissions);
       } else {
         setBlockedEvents([]);
         setPendingSessions([]);
+        setPermissions([]);
       }
     } catch (error) {
       console.error('[dashboard]', error);
@@ -95,16 +104,14 @@ export default function Home() {
     }
   }
 
-  async function handleSwitch() {
-    await fetchData();
-  }
+  async function handleSwitch() { await fetchData(); }
 
   async function handleAccessDemo() {
     setDemoMessage(null);
     const access = await authFetch('/api/access-check', {
       method: 'POST',
       body: JSON.stringify({ matterId: demoMatterId }),
-    }).then((response) => readJson<{ status: 'CLEAR' | 'BLOCKED' }>(response));
+    }).then((r) => readJson<{ status: 'CLEAR' | 'BLOCKED' }>(r));
 
     if (access.status === 'BLOCKED') {
       setDemoMessage('BLOCKED: no matter details returned; event written to blocked_access_log.');
@@ -115,78 +122,138 @@ export default function Home() {
     const created = await authFetch('/api/sessions', {
       method: 'POST',
       body: JSON.stringify({ matterId: demoMatterId, queryType: 'research' }),
-    }).then((response) => readJson<{ session?: { id: string }; sessions?: [] }>(response));
+    }).then((r) => readJson<{ session?: { id: string }; sessions?: [] }>(r));
 
-    setDemoMessage(created.session
-      ? `CLEAR: session ${created.session.id} created and audit trail started.`
-      : 'BLOCKED: session was not created.');
+    setDemoMessage(
+      created.session
+        ? `CLEAR: session ${created.session.id} created and audit trail started.`
+        : 'BLOCKED: session was not created.'
+    );
     await fetchData();
   }
 
-  async function handleReviewSubmit(
-    sessionId: string,
-    decision: ReviewDecision,
-    notes: string
-  ): Promise<void> {
+  async function handleReviewSubmit(sessionId: string, decision: ReviewDecision, notes: string): Promise<void> {
     await authFetch('/api/review', {
       method: 'POST',
       body: JSON.stringify({ sessionId, decision, notes }),
-    }).then((response) => readJson<{ ok: boolean }>(response));
+    }).then((r) => readJson<{ ok: boolean }>(r));
     await fetchData();
   }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void fetchData();
-    }, 0);
+    const timer = window.setTimeout(() => { void fetchData(); }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
-  const tabs: Array<{ key: TabKey; label: string }> = [
-    { key: 'sessions', label: 'Sessions' },
+  const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
+    { key: 'sessions', label: 'Sessions',      icon: '◈' },
     ...(isPartner
       ? [
-          { key: 'blocked' as const, label: 'Blocked Access' },
-          { key: 'review' as const, label: 'Review Queue' },
-          { key: 'export' as const, label: 'Export' },
+          { key: 'blocked' as const, label: 'Blocked Access', icon: '⊘' },
+          { key: 'review'  as const, label: 'Review Queue',   icon: '✦' },
+          { key: 'export'  as const, label: 'Export',         icon: '↓' },
         ]
       : []),
   ];
 
+  /* ── Landing / unauthenticated ─────────────────────────────── */
   if (!currentUser && !loading) {
     return (
-      <main className="min-h-screen bg-slate-100 p-6">
-        <div className="mx-auto flex min-h-[80vh] max-w-lg items-center">
-          <section className="w-full rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <h1 className="text-2xl font-semibold text-slate-950">BRAHMO Compliance Engine</h1>
-            <p className="mt-2 text-sm text-slate-500">Select a demo user to begin the secure RLS walkthrough.</p>
-            <div className="mt-6 flex justify-center">
+      <main style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div style={{ width: '100%', maxWidth: '420px' }}>
+          {/* Logo mark */}
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: '56px', height: '56px', borderRadius: '16px',
+              background: 'var(--accent-dim)', border: '1px solid rgba(0,255,159,0.3)',
+              fontSize: '1.5rem', marginBottom: '16px',
+            }}>⬡</div>
+            <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, letterSpacing: '-0.025em', color: 'var(--text-primary)' }}>
+              BRAHMO
+            </h1>
+            <p style={{ margin: '6px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Compliance Engine
+            </p>
+          </div>
+
+          <div className="grok-card" style={{ padding: '28px', textAlign: 'center' }}>
+            <p style={{ margin: '0 0 20px', fontSize: '0.875rem', color: 'var(--text-second)', lineHeight: 1.7 }}>
+              Select a demo user to begin the secure RLS walkthrough.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
               <UserSwitcher currentUserId="" onSwitch={handleSwitch} />
             </div>
-          </section>
+          </div>
+
+          <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            Ethical walls · Audit trails · Regulator-ready export
+          </p>
         </div>
       </main>
     );
   }
 
+  /* ── Main Dashboard ────────────────────────────────────────── */
   return (
-    <main className="min-h-screen bg-slate-100">
-      <header className="border-b border-slate-800 bg-slate-950 px-6 py-4 text-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="text-lg font-semibold">BRAHMO Compliance Engine</div>
-            <div className="text-sm text-slate-300">Ethical walls, audit trails, and regulator-ready export</div>
+    <main style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+
+      {/* ── Header ── */}
+      <header style={{
+        background: 'var(--surface)',
+        borderBottom: '1px solid var(--border)',
+        padding: '0 24px',
+        position: 'sticky', top: 0, zIndex: 50,
+      }}>
+        <div style={{
+          maxWidth: '1280px', margin: '0 auto', height: '60px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px',
+        }}>
+          {/* Brand */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '8px',
+              background: 'var(--accent-dim)', border: '1px solid rgba(0,255,159,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '1rem', flexShrink: 0,
+            }}>⬡</div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                BRAHMO
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '-2px' }}>
+                Compliance Engine
+              </div>
+            </div>
           </div>
+
+          {/* Current user pill */}
           {currentUser && (
-            <div className="text-sm text-slate-200">
-              {currentUser.name} / {currentUser.role}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                width: '28px', height: '28px', borderRadius: '50%',
+                background: 'var(--accent-dim)', border: '1px solid rgba(0,255,159,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent)',
+              }}>
+                {currentUser.name.charAt(0)}
+              </div>
+              <div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1 }}>
+                  {currentUser.name}
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '1px' }}>
+                  {currentUser.role}
+                </div>
+              </div>
             </div>
           )}
         </div>
       </header>
 
-      <div className="border-b border-slate-200 bg-white px-6 py-3">
-        <div className="mx-auto max-w-7xl">
+      {/* ── User Switcher Bar ── */}
+      <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '0 24px' }}>
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '12px 0' }}>
           <UserSwitcher
             currentUserId={currentUser?.id ?? ''}
             currentUserEmail={currentUser?.email}
@@ -195,37 +262,68 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-6">
+      {/* ── Content ── */}
+      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '28px 24px' }}>
+
+        {/* Stats */}
         <StatsCards stats={stats} loading={loading} />
 
-        <div className="mt-6 flex gap-2 border-b border-slate-300">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`border-b-2 px-4 py-2 text-sm font-medium transition ${
-                activeTab === tab.key
-                  ? 'border-slate-950 text-slate-950'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Tabs */}
+        <div style={{ marginTop: '28px', display: 'flex', gap: '4px', borderBottom: '1px solid var(--border)', paddingBottom: '0' }}>
+          {tabs.map((tab) => {
+            const active = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '10px 16px',
+                  fontSize: '0.82rem', fontWeight: active ? 600 : 500,
+                  color: active ? 'var(--accent)' : 'var(--text-muted)',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
+                  marginBottom: '-1px',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-second)'; }}
+                onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; }}
+              >
+                <span>{tab.icon}</span>
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
-        <div className="mt-6">
+        {/* Tab panels */}
+        <div style={{ marginTop: '24px' }}>
           {activeTab === 'sessions' && (
-            <div className="grid gap-6">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <MatterList matters={matters} loading={loading} />
-              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-base font-semibold text-slate-950">Live Access Check</h2>
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+
+              {/* Gap 1 — Dynamic Permission Manager (partner only) */}
+              {isPartner && (
+                <PermissionManager
+                  currentPermissions={permissions}
+                  onUpdate={fetchData}
+                />
+              )}
+
+              {/* Live Access Check */}
+              <div className="grok-card" style={{ padding: '20px' }}>
+                <h2 style={{ margin: '0 0 4px', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Live Access Check
+                </h2>
+                <p style={{ margin: '0 0 16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Simulate an AI session request against the ethical wall engine.
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
                   <select
                     value={demoMatterId}
-                    onChange={(event) => setDemoMatterId(event.target.value)}
-                    className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
+                    onChange={(e) => setDemoMatterId(e.target.value)}
+                    className="grok-select"
                   >
                     <option value="matter_1">matter_1 / Rajesh Bail</option>
                     <option value="matter_2">matter_2 / Rajesh Property</option>
@@ -234,19 +332,25 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleAccessDemo}
-                    className="h-10 rounded-md bg-slate-900 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700"
+                    className="btn btn-primary"
                   >
-                    Check Access and Start Session
+                    Check Access &amp; Start Session
                   </button>
                 </div>
-                {demoMessage && <p className="mt-3 text-sm font-medium text-slate-700">{demoMessage}</p>}
-              </section>
-              <SessionList
-                sessions={sessions}
-                loading={loading}
-                showReviewDetails={isPartner}
-                now={now}
-              />
+                {demoMessage && (
+                  <p style={{
+                    marginTop: '12px', padding: '10px 14px',
+                    borderRadius: '10px', fontSize: '0.82rem', fontWeight: 500,
+                    background: demoMessage.startsWith('BLOCKED') ? 'var(--danger-dim)' : 'var(--accent-dim)',
+                    color: demoMessage.startsWith('BLOCKED') ? 'var(--danger)' : 'var(--accent)',
+                    border: `1px solid ${demoMessage.startsWith('BLOCKED') ? 'rgba(239,68,68,0.25)' : 'rgba(0,255,159,0.25)'}`,
+                  }}>
+                    {demoMessage}
+                  </p>
+                )}
+              </div>
+
+              <SessionList sessions={sessions} loading={loading} showReviewDetails={isPartner} now={now} />
             </div>
           )}
 
@@ -265,6 +369,18 @@ export default function Home() {
           {activeTab === 'export' && <ExportButton />}
         </div>
       </div>
+
+      {/* ── Footer ── */}
+      <footer style={{
+        marginTop: '48px',
+        borderTop: '1px solid var(--border)',
+        padding: '20px 24px',
+        textAlign: 'center',
+        fontSize: '0.75rem',
+        color: 'var(--text-muted)',
+      }}>
+        BRAHMO Compliance Engine · Ethical walls · Append-only audit · Regulator-ready export
+      </footer>
     </main>
   );
 }

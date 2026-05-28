@@ -9,43 +9,65 @@ interface BlockedAccessLogProps {
 
 export default function BlockedAccessLog({ events, loading }: BlockedAccessLogProps) {
   if (loading) {
-    return <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading blocked events...</div>;
+    return (
+      <div className="grok-card p-6" style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="dot-live" /> Loading blocked events…
+        </div>
+      </div>
+    );
   }
 
   return (
-    <section className="overflow-hidden rounded-lg border border-rose-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-2 border-b border-rose-100 bg-rose-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-base font-semibold text-rose-950">Blocked Access Log</h2>
-        <span className="rounded-full border border-rose-200 bg-white px-2.5 py-1 text-xs font-semibold text-rose-800">
-          Append-only audit evidence
-        </span>
+    <section className="grok-card" style={{ overflow: 'hidden', borderColor: 'rgba(239,68,68,0.25)' }}>
+      <div style={{
+        padding: '16px 20px',
+        borderBottom: '1px solid rgba(239,68,68,0.2)',
+        background: 'rgba(239,68,68,0.05)',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '8px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '1rem' }}>⊘</span>
+          <h2 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: '#F87171' }}>
+            Blocked Access Log
+          </h2>
+        </div>
+        <span className="badge badge-red">Append-only · Immutable</span>
       </div>
 
       {events.length === 0 ? (
-        <div className="p-6 text-sm text-slate-500">No blocked events in this period.</div>
+        <div style={{ padding: '24px', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+          No blocked events in this period.
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div style={{ overflowX: 'auto' }}>
+          <table className="grok-table">
+            <thead>
               <tr>
-                <th className="px-4 py-3">Timestamp</th>
-                <th className="px-4 py-3">User</th>
-                <th className="px-4 py-3">Attempted Matter</th>
-                <th className="px-4 py-3">Reason</th>
+                <th>Timestamp</th>
+                <th>User</th>
+                <th>Attempted Matter</th>
+                <th>Reason</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {events.map((event) => (
                 <tr key={event.event_id}>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                  <td style={{ color: 'var(--text-primary)' }}>
                     {new Date(event.timestamp).toLocaleString()}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-500">{event.user_id.slice(0, 8)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-700">{event.attempted_matter_id}</td>
-                  <td className="whitespace-nowrap px-4 py-3">
-                    <span className="rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-800">
-                      {event.reason}
-                    </span>
+                  <td className="font-mono" style={{ fontSize: '0.75rem' }}>
+                    {event.user_id.slice(0, 8)}
+                  </td>
+                  <td className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>
+                    {event.attempted_matter_id}
+                  </td>
+                  <td>
+                    <span className="badge badge-red">{event.reason}</span>
                   </td>
                 </tr>
               ))}

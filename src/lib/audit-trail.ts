@@ -121,15 +121,32 @@ export async function getSessionsForCurrentUser(client: SupabaseClient): Promise
   return (data ?? []) as unknown as SessionWithJoins[];
 }
 
-export async function getPendingReviewSessions(client: SupabaseClient): Promise<AiSession[]> {
+export async function getPendingReviewSessions(client: SupabaseClient): Promise<SessionWithJoins[]> {
   const { data, error } = await client
     .from('ai_sessions')
-    .select('*')
+    .select(`
+      id,
+      user_id,
+      matter_id,
+      session_start,
+      session_end,
+      query_type,
+      output_token_count,
+      output_hash,
+      review_status,
+      reviewer_id,
+      review_timestamp,
+      review_decision,
+      review_notes,
+      created_at,
+      users!ai_sessions_user_id_fkey(name, role),
+      matters!ai_sessions_matter_id_fkey(matter_name, client_id, practice_area)
+    `)
     .eq('review_status', 'pending')
     .order('session_start', { ascending: false });
 
   if (error) throw new Error(error.message);
-  return (data ?? []) as AiSession[];
+  return (data ?? []) as unknown as SessionWithJoins[];
 }
 
 export async function getDashboardStats(client: SupabaseClient): Promise<{

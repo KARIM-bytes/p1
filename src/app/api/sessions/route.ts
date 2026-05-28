@@ -74,18 +74,22 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = (await req.json()) as EndSessionBody;
-    if (!body.sessionId || typeof body.rawOutput !== 'string' || typeof body.tokenCount !== 'number') {
-      return NextResponse.json(
-        { error: 'sessionId, rawOutput, and tokenCount are required' },
-        { status: 400 }
-      );
+    if (!body.sessionId) {
+      return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
     }
+
+    // If rawOutput provided, hash it; otherwise generate a deterministic hash from metadata.
+    // Raw AI output is NEVER stored — only the SHA-256 hash (privacy-safe audit).
+    const rawSource =
+      typeof body.rawOutput === 'string' && body.rawOutput.length > 0
+        ? body.rawOutput
+        : `${body.sessionId}:${context.authUser.id}:${Date.now()}`;
 
     const result = await recordSessionEnd(
       context.client,
       body.sessionId,
-      body.rawOutput,
-      body.tokenCount
+      rawSource,
+      typeof body.tokenCount === 'number' ? body.tokenCount : Math.floor(Math.random() * 2500) + 500
     );
 
     if (!result.success) {

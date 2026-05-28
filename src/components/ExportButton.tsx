@@ -13,9 +13,9 @@ function todayISO() {
 }
 
 function thirtyDaysAgoISO() {
-  const date = new Date();
-  date.setDate(date.getDate() - 30);
-  return date.toISOString().slice(0, 10);
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.toISOString().slice(0, 10);
 }
 
 export default function ExportButton({
@@ -30,14 +30,12 @@ export default function ExportButton({
   async function handleExport() {
     setLoading(true);
     setError(null);
-
     try {
       const response = await authFetch(`/api/export?from=${from}&to=${to}`);
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? 'Export failed');
       }
-
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -45,50 +43,62 @@ export default function ExportButton({
       link.download = `brahmo-compliance-${from}-to-${to}.csv`;
       link.click();
       URL.revokeObjectURL(url);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Export failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export failed');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="grid gap-3 sm:grid-cols-[auto_auto_1fr] sm:items-end">
-        <label className="grid gap-1 text-sm font-medium text-slate-700">
+    <div className="grok-card" style={{ padding: '24px' }}>
+      <div style={{ marginBottom: '20px' }}>
+        <h2 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+          Compliance Export
+        </h2>
+        <p style={{ margin: '6px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+          Exports masked audit data — clients, matters, users and reviewer identities are
+          anonymised while preserving hashes and timestamps for regulator review.
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-second)', fontWeight: 500 }}>
           From
           <input
             type="date"
             value={from}
             max={to}
-            onChange={(event) => setFrom(event.target.value)}
-            className="h-10 rounded-md border border-slate-300 px-3 text-sm text-slate-900 outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
+            onChange={(e) => setFrom(e.target.value)}
+            className="grok-input"
           />
         </label>
-        <label className="grid gap-1 text-sm font-medium text-slate-700">
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-second)', fontWeight: 500 }}>
           To
           <input
             type="date"
             value={to}
             min={from}
             max={todayISO()}
-            onChange={(event) => setTo(event.target.value)}
-            className="h-10 rounded-md border border-slate-300 px-3 text-sm text-slate-900 outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
+            onChange={(e) => setTo(e.target.value)}
+            className="grok-input"
           />
         </label>
         <button
           type="button"
           onClick={handleExport}
           disabled={loading}
-          className="h-10 rounded-md bg-slate-900 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-60"
+          className="btn btn-primary"
         >
-          {loading ? 'Generating...' : 'Export Compliance CSV'}
+          {loading ? 'Generating…' : '↓ Export CSV'}
         </button>
       </div>
-      {error && <p className="mt-3 text-sm font-medium text-rose-700">{error}</p>}
-      <p className="mt-3 text-sm text-slate-500">
-        Export masks clients, matters, users, reviewers, and notes while retaining hashes and timestamps for audit proof.
-      </p>
+
+      {error && (
+        <p style={{ marginTop: '12px', fontSize: '0.8rem', color: 'var(--danger)', fontWeight: 500 }}>
+          ⚠ {error}
+        </p>
+      )}
     </div>
   );
 }

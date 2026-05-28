@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>BRAHMO Demo 3 – Isolation Proof</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0A0A0A;color:#F4F4F5;font-family:'Inter',sans-serif;overflow:hidden;width:1920px;height:1080px}
+:root{--accent:#00FF9F;--surface:#111;--surface-hi:#1A1A1A;--border:#222;--text2:#A1A1AA;--text3:#71717A;--purple:#A855F7}
+.header{position:fixed;top:0;left:0;right:0;height:60px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:16px;z-index:100}
+.logo-box{width:36px;height:36px;border-radius:10px;background:rgba(0,255,159,.12);border:1px solid rgba(0,255,159,.3);display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+.brand{font-weight:700;font-size:1rem}.sub-brand{font-size:.7rem;color:var(--text3)}
+.user-bar{position:fixed;top:60px;left:0;right:0;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:12px;z-index:100}
+.label-sm{font-size:.75rem;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+.select-mock{height:38px;padding:0 14px;background:var(--surface-hi);border:1px solid #333;border-radius:10px;font-size:.85rem;display:flex;align-items:center;gap:8px;min-width:210px;transition:border-color .3s}
+.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:9999px;font-size:.7rem;font-weight:600}
+.badge-green{background:rgba(0,255,159,.12);color:var(--accent);border:1px solid rgba(0,255,159,.25)}
+.badge-purple{background:rgba(168,85,247,.12);color:var(--purple);border:1px solid rgba(168,85,247,.25)}
+.badge-amber{background:rgba(250,204,21,.1);color:#FACC15;border:1px solid rgba(250,204,21,.25)}
+.content{position:fixed;top:112px;left:0;right:0;bottom:0;padding:28px 32px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.panel-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:.88rem;font-weight:600}
+.matter-item{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.matter-name{font-weight:600;font-size:.88rem;color:#F4F4F5;margin-bottom:4px}
+.matter-sub{font-size:.75rem;color:var(--text3)}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead th{background:var(--surface-hi);color:var(--text3);font-size:.68rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid var(--border)}
+tbody td{padding:10px 14px;color:var(--text2)}
+tbody td.light{color:#F4F4F5}
+.mono{font-family:'JetBrains Mono',monospace;font-size:.72rem}
+.sql-editor{background:#0D1117;border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.sql-tab{height:40px;background:#161b22;border-bottom:1px solid #30363d;display:flex;align-items:center;padding:0 16px;gap:8px;font-size:.78rem;color:#8b949e}
+.sql-tab-name{color:#f0f6fc;font-weight:500}
+.sql-body{flex:1;padding:18px}
+.sql-code{font-family:'JetBrains Mono',monospace;font-size:.78rem;line-height:1.75;color:#e6edf3}
+.kw{color:#ff7b72}.str{color:#a5d6ff}.cmt{color:#8b949e}.fn{color:#d2a8ff}
+.sql-result{background:#0A0A0A;border-top:1px solid #30363d;padding:14px 18px;font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text2);display:none}
+.sql-ok{color:var(--accent)}
+.title-screen{position:fixed;inset:0;background:#0A0A0A;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;transition:opacity .8s}
+.title-screen.hide{opacity:0;pointer-events:none}
+.title-tag{font-size:.8rem;font-weight:600;color:var(--accent);letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px}
+.title-h1{font-size:3rem;font-weight:700;letter-spacing:-.03em;text-align:center}
+.title-sub{font-size:1.1rem;color:var(--text2);margin-top:16px;text-align:center}
+.end-screen{position:fixed;inset:0;background:#0A0A0A;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .8s}
+.end-screen.show{opacity:1}
+.end-line{font-size:1.1rem;color:var(--text2);text-align:center;max-width:720px;line-height:1.7;margin-top:20px}
+#cursor{position:fixed;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 0 0 2px rgba(0,0,0,.5),0 0 12px rgba(255,255,255,.4);pointer-events:none;z-index:9999;transform:translate(-50%,-50%)}
+#cursor.click{transform:translate(-50%,-50%) scale(.7)}
+.ring{position:fixed;border:2px solid var(--accent);border-radius:12px;pointer-events:none;z-index:498;opacity:0;transition:all .4s;box-shadow:0 0 20px rgba(0,255,159,.2)}
+.ring.show{opacity:1}
+.callout{position:fixed;background:rgba(0,255,159,.15);border:1px solid rgba(0,255,159,.4);color:var(--accent);font-size:.8rem;font-weight:600;padding:8px 14px;border-radius:10px;pointer-events:none;z-index:500;opacity:0;transition:opacity .4s;white-space:nowrap}
+.callout.show{opacity:1}
+.step-label{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:rgba(17,17,17,.95);border:1px solid var(--border);border-radius:12px;padding:10px 24px;font-size:.88rem;font-weight:500;z-index:600;opacity:0;transition:opacity .4s;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.step-label.show{opacity:1}
+.rls-policy{background:#0D1117;border:1px solid rgba(0,255,159,.2);border-radius:12px;padding:16px;margin-top:16px;font-family:'JetBrains Mono',monospace;font-size:.73rem;line-height:1.7;color:#e6edf3;display:none}
+</style>
+</head>
+<body>
+<div class="title-screen" id="titleScreen">
+  <div class="title-tag">BRAHMO Compliance Engine · Demo 3</div>
+  <div class="title-h1">Isolation Proof</div>
+  <div class="title-sub">Rahul Singh sees only his authorised matter —<br>SQL confirms RLS returns exactly 1 row</div>
+</div>
+<div class="end-screen" id="endScreen">
+  <div class="title-tag">Matter-Level Isolation Verified</div>
+  <div class="title-h1">RLS Enforced at Row Level</div>
+  <div class="end-line">"This demonstrates database-enforced ethical walls and<br>tamper-proof auditing across all AI interactions."</div>
+</div>
+<div id="cursor"></div>
+<div class="ring" id="ring"></div>
+<div class="callout" id="callout"></div>
+<div class="step-label" id="stepLabel"></div>
+
+<div class="header">
+  <div class="logo-box">⬡</div>
+  <div><div class="brand">BRAHMO</div><div class="sub-brand">Compliance Engine</div></div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+    <div style="width:30px;height:30px;border-radius:50%;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.3);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;color:var(--purple)">R</div>
+    <div><div style="font-size:.82rem;font-weight:600">Rahul Singh</div><div style="font-size:.68rem;color:var(--text3)">associate</div></div>
+  </div>
+</div>
+<div class="user-bar">
+  <span class="label-sm">Demo User</span>
+  <div class="select-mock">Rahul Singh (associate)</div>
+  <span class="badge badge-purple">ASSOCIATE</span>
+  <span class="badge badge-amber">DEMO MODE</span>
+</div>
+
+<div class="content">
+  <!-- Left: matters + sessions -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Accessible Matters</span>
+        <span class="badge badge-green" id="matterCount">1 visible</span>
+      </div>
+      <div id="matterList">
+        <div class="matter-item">
+          <div>
+            <div class="matter-name">TechCorp - NDA Review</div>
+            <div class="matter-sub"><span class="badge badge-purple" style="margin-right:6px">corporate</span>N/A · active</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="flex:1">
+      <div class="panel-header">
+        <span class="panel-title">AI Sessions</span>
+        <span class="badge badge-green">2 records</span>
+      </div>
+      <table>
+        <thead><tr><th>Date</th><th>Matter</th><th>Type</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>2026-05-05</td><td class="light">matter_3</td><td><span class="badge badge-purple">draft</span></td><td><span class="badge badge-amber">pending</span></td></tr>
+          <tr><td>2026-05-04</td><td class="light">matter_3</td><td><span class="badge badge-purple">review</span></td><td><span class="badge badge-green">reviewed</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="rls-policy" id="rlsPolicy">
+      <span style="color:#8b949e">-- Active RLS Policy on matters table</span><br>
+      <span style="color:#ff7b72">CREATE POLICY</span> <span style="color:#a5d6ff">"Users see permitted matters"</span> <span style="color:#ff7b72">ON</span> matters<br>
+      &nbsp;&nbsp;<span style="color:#ff7b72">FOR SELECT USING</span> (<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ff7b72">EXISTS</span> (<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ff7b72">SELECT</span> 1 <span style="color:#ff7b72">FROM</span> matter_permissions mp<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ff7b72">WHERE</span> mp.user_id = <span style="color:#d2a8ff">auth.uid()</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ff7b72">AND</span> mp.matter_id = matters.id<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;)<br>
+      &nbsp;&nbsp;);
+    </div>
+  </div>
+
+  <!-- Right: SQL editor -->
+  <div class="sql-editor">
+    <div class="sql-tab"><span>●</span><span class="sql-tab-name">supabase SQL editor</span><span>— qigpgkxupxfjoopqtbvs</span></div>
+    <div class="sql-body">
+      <div class="sql-code">
+        <span class="cmt">-- Run as Rahul (service role sets auth context)</span><br>
+        <span class="kw">SELECT</span> <span class="fn">set_config</span>(<span class="str">'request.jwt.claims'</span>,<br>
+        &nbsp;&nbsp;<span class="fn">json_build_object</span>(<span class="str">'sub'</span>, <span class="str">'dcc22e7e-c94f-4ee0-84bb-ac4cac063ed5'</span>)::<span class="kw">text</span>, <span class="fn">true</span>);<br><br>
+        <span class="kw">SELECT</span> id, matter_name, practice_area<br>
+        <span class="kw">FROM</span> matters;<br>
+      </div>
+    </div>
+    <div class="sql-result" id="sqlResult1"></div>
+    <div style="padding:0 18px 0;flex:0">
+      <div class="sql-code" style="padding:14px 0;border-top:1px solid #30363d;display:none" id="sqlCode2">
+        <span class="cmt">-- Cross-check: attempt to read matter_1 directly</span><br>
+        <span class="kw">SELECT</span> * <span class="kw">FROM</span> matters <span class="kw">WHERE</span> id = <span class="str">'matter_1'</span>;
+      </div>
+    </div>
+    <div class="sql-result" id="sqlResult2" style="border-top:1px solid #30363d"></div>
+  </div>
+</div>
+
+<script>
+const $ = id=>document.getElementById(id);
+const cursor=$('cursor'),ring=$('ring'),callout=$('callout'),stepLabel=$('stepLabel');
+function moveTo(x,y,ms=800){return new Promise(r=>{cursor.style.transition=`left ${ms}ms cubic-bezier(.4,0,.2,1),top ${ms}ms cubic-bezier(.4,0,.2,1)`;cursor.style.left=x+'px';cursor.style.top=y+'px';setTimeout(r,ms)})}
+function click(){cursor.classList.add('click');setTimeout(()=>cursor.classList.remove('click'),200)}
+function showStep(t){stepLabel.textContent=t;stepLabel.classList.add('show')}
+function hideStep(){stepLabel.classList.remove('show')}
+function showCallout(t,x,y){callout.textContent=t;callout.style.left=x+'px';callout.style.top=y+'px';callout.classList.add('show')}
+function hideCallout(){callout.classList.remove('show')}
+function showRing(x,y,w,h){ring.style.cssText=`left:${x}px;top:${y}px;width:${w}px;height:${h}px`;ring.classList.add('show')}
+function hideRing(){ring.classList.remove('show')}
+function wait(ms){return new Promise(r=>setTimeout(r,ms))}
+
+async function run(){
+  cursor.style.cssText='left:960px;top:540px;transition:none';
+  await wait(2500);
+  $('titleScreen').classList.add('hide');
+  await wait(900);
+
+  // Step 1
+  showStep('Step 1 — Rahul is signed in — RLS scopes his view automatically');
+  await moveTo(200, 86, 800);
+  showRing(10, 62, 500, 44);
+  showCallout('Rahul\'s JWT identity is passed to every DB query', 80, 36);
+  await wait(2000);
+  hideCallout();hideRing();hideStep();
+
+  // Step 2
+  showStep('Step 2 — Accessible Matters: RLS returns only Matter 3');
+  await moveTo(300, 300, 900);
+  showRing(24, 160, 910, 120);
+  showCallout('Only matter_3 has a matter_permissions row for Rahul', 100, 136);
+  await wait(2200);
+  hideCallout();hideRing();hideStep();
+
+  // Step 3: SQL query runs
+  showStep('Step 3 — SQL confirms: SELECT returns exactly 1 row');
+  await moveTo(1400, 350, 1000);
+  showRing(944,112,950,220);
+  await wait(800);
+  click();
+  const sr1=$('sqlResult1');
+  sr1.style.display='block';
+  sr1.innerHTML=`<span style="color:var(--text3);display:block;margin-bottom:6px">Query result (1 row):</span><span style="color:var(--accent)">id        | matter_name               | practice_area</span><br><span style="color:var(--text2)">----------+---------------------------+--------------<br>matter_3  | TechCorp - NDA Review     | corporate</span><br><br><span style="color:var(--accent)">Rows: 1</span>`;
+  showCallout('✓ Exactly 1 row — matter-level isolation confirmed', 1000, 86);
+  await wait(2500);
+  hideCallout();hideRing();hideStep();
+
+  // Step 4: cross check
+  showStep('Step 4 — Direct query for matter_1 returns 0 rows');
+  $('sqlCode2').style.display='block';
+  await moveTo(1400, 580, 700);
+  showRing(944, 480, 950, 120);
+  await wait(600);
+  click();
+  const sr2=$('sqlResult2');
+  sr2.style.display='block';
+  sr2.innerHTML=`<span style="color:var(--text3);display:block;margin-bottom:6px">Query result:</span><span style="color:#FACC15">Rows: 0</span><span style="color:var(--text2)"> — RLS filtered matter_1 from Rahul's context</span>`;
+  showCallout('matter_1 invisible — no permission row exists for this user', 1000, 454);
+  await wait(2200);
+  hideCallout();hideRing();hideStep();
+
+  // Step 5: show RLS policy
+  showStep('Step 5 — The RLS policy enforcing this isolation');
+  $('rlsPolicy').style.display='block';
+  await moveTo(400, 780, 800);
+  showRing(24, 696, 910, 180);
+  showCallout('Policy evaluated per-row, per-user — zero application code needed', 80, 670);
+  await wait(2500);
+  hideCallout();hideRing();hideStep();
+
+  await wait(500);
+  $('endScreen').classList.add('show');
+}
+run();
+</script>
+</body>
+</html>

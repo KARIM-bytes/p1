@@ -4,7 +4,7 @@ import type { User, UserRole } from './types';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const SUPABASE_SERVICE_ROLE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? SUPABASE_ANON_KEY;
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase: SupabaseClient = createClient(
   SUPABASE_URL,
@@ -61,7 +61,7 @@ export async function getAuthenticatedContext(req: HeaderReader): Promise<Authen
     .from('users')
     .select('id, name, email, role, sra_number, created_at')
     .eq('id', authData.user.id)
-    .single();
+    .maybeSingle();
 
   if (profileError || !profile) return null;
 

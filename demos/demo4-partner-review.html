@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>BRAHMO Demo 4 – Partner Review</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0A0A0A;color:#F4F4F5;font-family:'Inter',sans-serif;overflow:hidden;width:1920px;height:1080px}
+:root{--accent:#00FF9F;--surface:#111;--surface-hi:#1A1A1A;--border:#222;--text2:#A1A1AA;--text3:#71717A;--purple:#A855F7}
+.header{position:fixed;top:0;left:0;right:0;height:60px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:16px;z-index:100}
+.logo-box{width:36px;height:36px;border-radius:10px;background:rgba(0,255,159,.12);border:1px solid rgba(0,255,159,.3);display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+.brand{font-weight:700;font-size:1rem}.sub-brand{font-size:.7rem;color:var(--text3)}
+.user-bar{position:fixed;top:60px;left:0;right:0;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:12px;z-index:100}
+.label-sm{font-size:.75rem;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+.select-mock{height:38px;padding:0 14px;background:var(--surface-hi);border:1px solid #333;border-radius:10px;font-size:.85rem;display:flex;align-items:center;gap:8px;min-width:210px}
+.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:9999px;font-size:.7rem;font-weight:600}
+.badge-green{background:rgba(0,255,159,.12);color:var(--accent);border:1px solid rgba(0,255,159,.25)}
+.badge-partner{background:rgba(0,255,159,.12);color:var(--accent);border:1px solid rgba(0,255,159,.25)}
+.badge-purple{background:rgba(168,85,247,.12);color:var(--purple);border:1px solid rgba(168,85,247,.25)}
+.badge-amber{background:rgba(250,204,21,.1);color:#FACC15;border:1px solid rgba(250,204,21,.25)}
+.tabs{display:flex;gap:4px;padding:0 32px;border-bottom:1px solid var(--border);background:var(--surface);position:fixed;top:112px;left:0;right:0;z-index:90}
+.tab{padding:10px 18px;font-size:.82rem;font-weight:500;color:var(--text3);border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:6px}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.content{position:fixed;top:156px;left:0;right:0;bottom:0;padding:28px 32px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.panel-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:.88rem;font-weight:600}
+.session-card{background:var(--surface-hi);border:1px solid var(--border);border-radius:12px;padding:16px;margin:16px}
+.mono{font-family:'JetBrains Mono',monospace;font-size:.72rem}
+.grok-textarea{width:100%;padding:10px 12px;background:#0D1117;border:1px solid #333;border-radius:10px;color:#F4F4F5;font-size:.82rem;font-family:'Inter',sans-serif;resize:none;outline:none;transition:border-color .3s}
+.grok-textarea.focused{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,255,159,.12)}
+.btn-row{display:flex;gap:8px;margin-top:12px}
+.btn{height:36px;padding:0 16px;border-radius:10px;font-size:.8rem;font-weight:600;border:none;cursor:pointer;display:flex;align-items:center}
+.btn-approve{background:rgba(0,255,159,.12);color:var(--accent);border:1px solid rgba(0,255,159,.3)}
+.btn-approve.clicked{background:var(--accent);color:#000}
+.btn-edit{background:rgba(168,85,247,.12);color:var(--purple);border:1px solid rgba(168,85,247,.3)}
+.btn-reject{background:rgba(239,68,68,.12);color:#EF4444;border:1px solid rgba(239,68,68,.3)}
+/* Audit trail */
+.trail{display:none;padding:16px}
+.trail-item{display:flex;gap:12px;margin-bottom:16px;position:relative}
+.trail-item::before{content:'';position:absolute;left:11px;top:28px;bottom:-8px;width:1px;background:var(--border)}
+.trail-item:last-child::before{display:none}
+.trail-dot{width:24px;height:24px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700}
+.dot-green{background:rgba(0,255,159,.15);border:1px solid rgba(0,255,159,.3);color:var(--accent)}
+.dot-amber{background:rgba(250,204,21,.1);border:1px solid rgba(250,204,21,.3);color:#FACC15}
+.dot-purple{background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.3);color:var(--purple)}
+.trail-title{font-size:.82rem;font-weight:600;color:#F4F4F5;margin-bottom:2px}
+.trail-sub{font-size:.74rem;color:var(--text3)}
+.title-screen{position:fixed;inset:0;background:#0A0A0A;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;transition:opacity .8s}
+.title-screen.hide{opacity:0;pointer-events:none}
+.title-tag{font-size:.8rem;font-weight:600;color:var(--accent);letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px}
+.title-h1{font-size:3rem;font-weight:700;letter-spacing:-.03em;text-align:center}
+.title-sub{font-size:1.1rem;color:var(--text2);margin-top:16px;text-align:center}
+.end-screen{position:fixed;inset:0;background:#0A0A0A;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .8s}
+.end-screen.show{opacity:1}
+.end-line{font-size:1.1rem;color:var(--text2);text-align:center;max-width:720px;line-height:1.7;margin-top:20px}
+#cursor{position:fixed;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 0 0 2px rgba(0,0,0,.5);pointer-events:none;z-index:9999;transform:translate(-50%,-50%)}
+#cursor.click{transform:translate(-50%,-50%) scale(.7)}
+.ring{position:fixed;border:2px solid var(--accent);border-radius:12px;pointer-events:none;z-index:498;opacity:0;transition:all .4s;box-shadow:0 0 20px rgba(0,255,159,.2)}
+.ring.show{opacity:1}
+.callout{position:fixed;background:rgba(0,255,159,.15);border:1px solid rgba(0,255,159,.4);color:var(--accent);font-size:.8rem;font-weight:600;padding:8px 14px;border-radius:10px;pointer-events:none;z-index:500;opacity:0;transition:opacity .4s;white-space:nowrap}
+.callout.show{opacity:1}
+.step-label{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:rgba(17,17,17,.95);border:1px solid var(--border);border-radius:12px;padding:10px 24px;font-size:.88rem;font-weight:500;z-index:600;opacity:0;transition:opacity .4s;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.step-label.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="title-screen" id="titleScreen">
+  <div class="title-tag">BRAHMO Compliance Engine · Demo 4</div>
+  <div class="title-h1">Partner Review</div>
+  <div class="title-sub">Advocate Sharma reviews Priya's pending session —<br>full audit trail written on approval</div>
+</div>
+<div class="end-screen" id="endScreen">
+  <div class="title-tag">Review Complete</div>
+  <div class="title-h1">Audit Trail Written</div>
+  <div class="end-line">"This demonstrates database-enforced ethical walls and<br>tamper-proof auditing across all AI interactions."</div>
+</div>
+
+<div id="cursor"></div>
+<div class="ring" id="ring"></div>
+<div class="callout" id="callout"></div>
+<div class="step-label" id="stepLabel"></div>
+
+<div class="header">
+  <div class="logo-box">⬡</div>
+  <div><div class="brand">BRAHMO</div><div class="sub-brand">Compliance Engine</div></div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+    <div style="width:30px;height:30px;border-radius:50%;background:rgba(0,255,159,.12);border:1px solid rgba(0,255,159,.3);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;color:var(--accent)">A</div>
+    <div><div style="font-size:.82rem;font-weight:600">Advocate Sharma</div><div style="font-size:.68rem;color:var(--text3)">partner</div></div>
+  </div>
+</div>
+<div class="user-bar">
+  <span class="label-sm">Demo User</span>
+  <div class="select-mock">Advocate Sharma (partner)</div>
+  <span class="badge badge-partner">PARTNER</span>
+  <span class="badge badge-amber">DEMO MODE</span>
+</div>
+<div class="tabs">
+  <div class="tab">◈ Sessions</div>
+  <div class="tab">⊘ Blocked Access</div>
+  <div class="tab active">✦ Review Queue</div>
+  <div class="tab">↓ Export</div>
+</div>
+
+<div class="content">
+  <!-- Left: review panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Review Queue</span>
+      <span class="badge badge-amber" id="pendingBadge">3 pending</span>
+    </div>
+    <!-- Session card -->
+    <div class="session-card" id="sessionCard">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="mono" style="color:var(--text3)">sess_03</span>
+        <span class="badge badge-purple">draft</span>
+        <span style="font-size:.78rem;color:var(--text2)">matter_2</span>
+      </div>
+      <div class="mono" style="color:var(--text3);margin-bottom:12px">Hash: i9j0k1l2m3n4a5b6c7d8e9f0…</div>
+      <textarea class="grok-textarea" id="noteArea" rows="2" placeholder="Review notes (optional)…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-approve" id="approveBtn">✓ Approve</button>
+        <button class="btn btn-edit" id="editBtn">✎ Approve with Edits</button>
+        <button class="btn btn-reject">✕ Reject</button>
+      </div>
+    </div>
+    <div style="padding:0 16px 16px;color:var(--text3);font-size:.8rem" id="moreMsg">+ 2 more sessions awaiting review</div>
+  </div>
+
+  <!-- Right: audit trail -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Full Audit Trail — sess_03</span>
+      <span class="badge badge-green" id="trailBadge" style="display:none">Review recorded</span>
+    </div>
+    <div class="trail" id="trail">
+      <div class="trail-item">
+        <div class="trail-dot dot-green">✓</div>
+        <div>
+          <div class="trail-title">Session created — 2026-05-03 14:00</div>
+          <div class="trail-sub">User: Priya Mehta (335f7d86) · matter_2 · draft</div>
+        </div>
+      </div>
+      <div class="trail-item">
+        <div class="trail-dot dot-amber">◷</div>
+        <div>
+          <div class="trail-title">Pending review — 2026-05-03 14:30</div>
+          <div class="trail-sub">Output hash: i9j0k1l2m3n4a5b6c7d8e9f0 · tokens: 4,100</div>
+        </div>
+      </div>
+      <div class="trail-item" id="reviewTrailItem" style="opacity:0;transition:opacity .6s">
+        <div class="trail-dot dot-purple">✦</div>
+        <div>
+          <div class="trail-title">Reviewed — 2026-05-28 17:52</div>
+          <div class="trail-sub" id="reviewTrailSub">Reviewer: Advocate Sharma · Decision: approved</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const cursor=$('cursor'),ring=$('ring'),callout=$('callout'),stepLabel=$('stepLabel');
+function moveTo(x,y,ms=800){return new Promise(r=>{cursor.style.transition=`left ${ms}ms cubic-bezier(.4,0,.2,1),top ${ms}ms cubic-bezier(.4,0,.2,1)`;cursor.style.left=x+'px';cursor.style.top=y+'px';setTimeout(r,ms)})}
+function click(){cursor.classList.add('click');setTimeout(()=>cursor.classList.remove('click'),200)}
+function showStep(t){stepLabel.textContent=t;stepLabel.classList.add('show')}
+function hideStep(){stepLabel.classList.remove('show')}
+function showCallout(t,x,y){callout.textContent=t;callout.style.left=x+'px';callout.style.top=y+'px';callout.classList.add('show')}
+function hideCallout(){callout.classList.remove('show')}
+function showRing(x,y,w,h){ring.style.cssText=`left:${x}px;top:${y}px;width:${w}px;height:${h}px`;ring.classList.add('show')}
+function hideRing(){ring.classList.remove('show')}
+function wait(ms){return new Promise(r=>setTimeout(r,ms))}
+
+async function run(){
+  cursor.style.cssText='left:960px;top:540px;transition:none';
+  await wait(2500);
+  $('titleScreen').classList.add('hide');
+  await wait(900);
+
+  // Show review queue
+  showStep('Step 1 — Partner sees Review Queue tab (partner-only)');
+  await moveTo(560, 132, 800);
+  showRing(462,118,170,36);
+  showCallout('Review Queue tab only visible to partners via RLS', 462, 92);
+  await wait(2000);
+  hideCallout();hideRing();
+
+  // Show pending session
+  showStep('Step 2 — Pending session from Priya — draft on matter_2');
+  $('trail').style.display='block';
+  await moveTo(400, 380, 900);
+  showRing(28,220,890,200);
+  showCallout('Session awaiting partner sign-off — SRA compliance requirement', 100,196);
+  await wait(2000);
+  hideCallout();hideRing();
+
+  // Type notes
+  showStep('Step 3 — Partner types review notes');
+  await moveTo(400, 460, 700);
+  $('noteArea').classList.add('focused');
+  showRing(32, 437, 880, 58);
+  const note='Reviewed draft against matter_2 file — content appropriate, no conflict detected.';
+  let i=0;
+  $('noteArea').focus();
+  while(i<note.length){
+    $('noteArea').value=note.slice(0,++i);
+    await wait(28);
+  }
+  await wait(600);
+  $('noteArea').classList.remove('focused');
+  hideRing();
+
+  // Click approve
+  showStep('Step 4 — Partner clicks Approve');
+  await moveTo(240, 516, 700);
+  showRing(32,498,120,40);
+  await wait(500);
+  click();
+  $('approveBtn').classList.add('clicked');
+  await wait(800);
+  hideRing();
+  showCallout('Decision written to ai_sessions.review_decision in real-time', 60, 470);
+  await wait(1800);
+  hideCallout();
+
+  // Audit trail update
+  showStep('Step 5 — Audit trail updated — immutable record of the review');
+  $('reviewTrailItem').style.opacity='1';
+  $('trailBadge').style.display='inline-flex';
+  $('pendingBadge').textContent='2 pending';
+  await moveTo(1400, 600, 800);
+  showRing(928,380,950,220);
+  showCallout('Reviewer ID, timestamp, decision + notes all cryptographically linked', 1000,356);
+  await wait(2800);
+  hideCallout();hideRing();hideStep();
+
+  await wait(500);
+  $('endScreen').classList.add('show');
+}
+run();
+</script>
+</body>
+</html>
