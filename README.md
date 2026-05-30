@@ -88,12 +88,12 @@ blocked_access_log → append-only, tamper-proof denial log
 
 ## Permission Matrix
 
-| User | Role | Matter 1 | Matter 2 | Matter 3 | Matter 4 |
-|---|---|---|---|---|---|
-| Priya Mehta | Associate | ✅ | ✅ | ❌ | ✅ |
-| Rahul Singh | Associate | ❌ | ❌ | ✅ | ❌ |
-| Sonia Das | Paralegal | ✅ | ❌ | ❌ | ❌ |
-| Advocate Sharma | Partner | ✅ | ✅ | ✅ | ✅ |
+| User | Role | Matter 1 (Rajesh — Bail) | Matter 2 (Rajesh — Property) | Matter 3 (TechCorp NDA) |
+|---|---|---|---|---|
+| Priya Mehta | Associate | ✅ | ✅ | ❌ |
+| Rahul Singh | Associate | ❌ | ❌ | ✅ |
+| Sonia Das | Paralegal | ✅ | ❌ | ❌ |
+| Advocate Sharma | Partner | ✅ | ✅ | ✅ |
 
 ---
 
