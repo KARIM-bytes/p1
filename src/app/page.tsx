@@ -121,9 +121,12 @@ export default function Home() {
     }).then((r) => readJson<{ status: 'CLEAR' | 'BLOCKED' }>(r));
 
     if (access.status === 'BLOCKED') {
-      await fetchData(); // refresh data first
-      setDemoMessage('⊘ BLOCKED — matter_3 returned zero rows to Priya. Event logged to blocked_access_log.');
-      return;
+      // ── Ethical wall: silent failure ──────────────────────────
+      // Logging already happened server-side in blocked_access_log.
+      // DO NOT reveal to the user that the matter exists or access was denied.
+      // From Priya's perspective: the query simply returned no results.
+      await fetchData();
+      return; // no message — intentional
     }
 
     const created = await authFetch('/api/sessions', {
@@ -353,9 +356,9 @@ export default function Home() {
                   <p style={{
                     marginTop: '12px', padding: '10px 14px',
                     borderRadius: '10px', fontSize: '0.82rem', fontWeight: 500,
-                    background: demoMessage.startsWith('BLOCKED') ? 'var(--danger-dim)' : 'var(--accent-dim)',
-                    color: demoMessage.startsWith('BLOCKED') ? 'var(--danger)' : 'var(--accent)',
-                    border: `1px solid ${demoMessage.startsWith('BLOCKED') ? 'rgba(239,68,68,0.25)' : 'rgba(0,255,159,0.25)'}`,
+                    background: 'var(--accent-dim)',
+                    color: 'var(--accent)',
+                    border: '1px solid rgba(0,255,159,0.25)',
                   }}>
                     {demoMessage}
                   </p>
